@@ -6,6 +6,110 @@ import {
   updateRepositorySizeEstimate
 } from './repository-manager.js';
 
+/**
+ * 创建简单仓库（不调用GitHub API）
+ * @param {Object} env - 环境变量
+ * @param {string} repoName - 仓库名称
+ * @returns {Promise<Object>} - 返回仓库信息
+ */
+async function createSimpleRepository(env, repoName) {
+  try {
+    console.log('创建简单仓库（不调用GitHub API）:', repoName);
+    
+    // 检查数据库中是否已存在同名仓库
+    const existingRepo = await env.DB.prepare(`
+      SELECT * FROM repositories WHERE name = ?
+    `).bind(repoName).first();
+    
+    if (existingRepo) {
+      console.log(`仓库 ${repoName} 已存在，返回现有仓库`);
+      return {
+        id: existingRepo.id,
+        owner: existingRepo.owner || env.GITHUB_OWNER || 'default-owner',
+        repo: existingRepo.name,
+        status: existingRepo.status
+      };
+    }
+    
+    // 检查repositories表是否存在
+    try {
+      const tableExists = await env.DB.prepare(`
+        SELECT name FROM sqlite_master WHERE type='table' AND name='repositories'
+      `).first();
+      
+      if (!tableExists) {
+        console.log('repositories表不存在，创建表');
+        
+        // 创建repositories表
+        await env.DB.exec(`
+          CREATE TABLE IF NOT EXISTS repositories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            owner TEXT NOT NULL,
+            token TEXT,
+            deploy_hook TEXT,
+            status TEXT DEFAULT 'active',
+            size_estimate INTEGER DEFAULT 0,
+            file_count INTEGER DEFAULT 0,
+            priority INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+        
+        console.log('repositories表创建成功');
+      }
+    } catch (tableError) {
+      console.error('检查或创建表失败:', tableError);
+      // 继续尝试插入，可能表已经存在
+    }
+    
+    // 先将所有仓库设置为非活跃
+    try {
+      await env.DB.prepare(`
+        UPDATE repositories SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
+        WHERE status = 'active'
+      `).run();
+      console.log('将所有现有仓库设置为非活跃');
+    } catch (updateError) {
+      console.warn('更新现有仓库状态失败，可能没有现有仓库:', updateError);
+      // 继续创建新仓库
+    }
+    
+    // 插入新仓库记录
+    const owner = env.GITHUB_OWNER || 'default-owner';
+    let result;
+    
+    try {
+      result = await env.DB.prepare(`
+        INSERT INTO repositories (name, owner, status, created_at, updated_at)
+        VALUES (?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        RETURNING id
+      `).bind(repoName, owner).first();
+      
+      console.log('插入仓库记录成功:', result);
+    } catch (insertError) {
+      console.error('插入仓库记录失败:', insertError);
+      throw new Error(`创建仓库记录失败: ${insertError.message}`);
+    }
+    
+    if (!result || !result.id) {
+      throw new Error('创建仓库成功但未返回ID');
+    }
+    
+    // 返回新仓库信息
+    return {
+      id: result.id,
+      owner: owner,
+      repo: repoName,
+      status: 'active'
+    };
+  } catch (error) {
+    console.error('创建简单仓库失败:', error);
+    throw error;
+  }
+}
+
 // CORS头
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -214,34 +318,204 @@ export async function onRequest(context) {
   // 创建新仓库
   if ((path === '/create' || path === '') && request.method === 'POST') {
     try {
+      console.log('收到创建仓库请求');
+      
+      // 检查数据库连接
+      if (!env.DB) {
+        console.error('缺少数据库连接');
+        return new Response(JSON.stringify({
+          success: false,
+          error: '服务器配置错误: 数据库未连接'
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+      
+      // 尝试检查数据库连接
+      try {
+        await env.DB.prepare('SELECT 1').first();
+      } catch (dbTestError) {
+        console.error('数据库连接测试失败:', dbTestError);
+        return new Response(JSON.stringify({
+          success: false,
+          error: '数据库连接失败: ' + dbTestError.message
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+      
       let baseName = 'images-repo';
+      let useSimpleMode = true; // 默认使用简化模式
       
       try {
         const data = await request.json();
         if (data && data.baseName) {
           baseName = data.baseName;
         }
+        if (data && typeof data.useSimpleMode === 'boolean') {
+          useSimpleMode = data.useSimpleMode;
+        }
+        console.log('解析请求JSON成功:', data);
       } catch (parseError) {
         console.warn('解析请求JSON失败，使用默认仓库名称:', parseError);
       }
       
-      console.log('创建新仓库，使用基础名称:', baseName);
-      const newRepo = await createNewRepository(env, baseName);
+      console.log(`创建新仓库，使用基础名称: ${baseName}, 简化模式: ${useSimpleMode}`);
       
+      try {
+        let newRepo;
+        
+        if (useSimpleMode) {
+          // 使用简化模式创建仓库（不调用GitHub API）
+          const repoName = `${baseName}-${Date.now()}`;
+          newRepo = await createSimpleRepository(env, repoName);
+        } else {
+          // 检查GitHub相关环境变量
+          if (!env.GITHUB_TOKEN) {
+            console.error('缺少GITHUB_TOKEN环境变量');
+            return new Response(JSON.stringify({
+              success: false,
+              error: '服务器配置错误: 缺少GitHub令牌'
+            }), {
+              status: 500,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+          if (!env.GITHUB_OWNER) {
+            console.error('缺少GITHUB_OWNER环境变量');
+            return new Response(JSON.stringify({
+              success: false,
+              error: '服务器配置错误: 缺少GitHub所有者'
+            }), {
+              status: 500,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+          // 使用GitHub API创建仓库
+          newRepo = await createNewRepository(env, baseName);
+        }
+        
+        console.log('仓库创建成功:', newRepo);
+        
+        return new Response(JSON.stringify({
+          success: true,
+          data: newRepo
+        }), {
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      } catch (repoError) {
+        console.error('创建仓库失败:', repoError);
+        return new Response(JSON.stringify({
+          success: false,
+          error: '创建仓库失败: ' + repoError.message
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+    } catch (error) {
+      console.error('处理创建仓库请求失败:', error);
       return new Response(JSON.stringify({
-        success: true,
-        data: newRepo
+        success: false,
+        error: '处理创建仓库请求失败: ' + error.message
       }), {
+        status: 500,
         headers: {
           'Content-Type': 'application/json',
           ...corsHeaders
         }
       });
+    }
+  }
+  
+  // 添加简化创建仓库的API端点
+  if (path === '/create-simple' && request.method === 'POST') {
+    try {
+      console.log('收到简化创建仓库请求');
+      
+      // 检查数据库连接
+      if (!env.DB) {
+        console.error('缺少数据库连接');
+        return new Response(JSON.stringify({
+          success: false,
+          error: '服务器配置错误: 数据库未连接'
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+      
+      let repoName = `images-repo-${Date.now()}`;
+      
+      try {
+        const data = await request.json();
+        if (data && data.repoName) {
+          repoName = data.repoName;
+        }
+        console.log('解析请求JSON成功:', data);
+      } catch (parseError) {
+        console.warn('解析请求JSON失败，使用默认仓库名称:', parseError);
+      }
+      
+      console.log('创建简化仓库，使用名称:', repoName);
+      
+      try {
+        const newRepo = await createSimpleRepository(env, repoName);
+        
+        console.log('简化仓库创建成功:', newRepo);
+        
+        return new Response(JSON.stringify({
+          success: true,
+          data: newRepo
+        }), {
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      } catch (repoError) {
+        console.error('创建简化仓库失败:', repoError);
+        return new Response(JSON.stringify({
+          success: false,
+          error: '创建简化仓库失败: ' + repoError.message
+        }), {
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
     } catch (error) {
-      console.error('创建仓库失败:', error);
+      console.error('处理创建简化仓库请求失败:', error);
       return new Response(JSON.stringify({
         success: false,
-        error: '创建仓库失败: ' + error.message
+        error: '处理创建简化仓库请求失败: ' + error.message
       }), {
         status: 500,
         headers: {
