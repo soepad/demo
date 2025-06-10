@@ -1062,29 +1062,24 @@ function initRepositoryManagement() {
             
             // 获取仓库名称
             const repoNameInput = document.getElementById('newRepoName');
-            const baseName = repoNameInput ? repoNameInput.value.trim() : 'images-repo';
+            let baseName = repoNameInput ? repoNameInput.value.trim() : 'images-repo';
             
             // 确保baseName不为空
             if (!baseName || baseName.trim() === '') {
                 baseName = 'images-repo';
             }
             
-                          // 使用正确的API端点
-              let endpoint = '/api/repositories';
-              
-              // 确保baseName不为空
-              if (!baseName || baseName.trim() === '') {
-                  baseName = 'images-repo';
-              }
-              
-              let requestBody = useSimpleMode ? 
-                  { repoName: `${baseName}-${Date.now()}` } : 
-                  { baseName, useSimpleMode };
-              
-              // 确保repoName不为空
-              if (useSimpleMode && (!requestBody.repoName || requestBody.repoName.startsWith('-'))) {
-                  requestBody.repoName = 'images-repo-' + Date.now();
-              }
+            // 使用正确的API端点
+            let endpoint = '/api/repositories';
+            
+            let requestBody = useSimpleMode ? 
+                { repoName: `${baseName}-${Date.now()}` } : 
+                { baseName, useSimpleMode };
+            
+            // 确保repoName不为空或不是以'-'开头
+            if (useSimpleMode && (!requestBody.repoName || requestBody.repoName.startsWith('-'))) {
+                requestBody.repoName = 'images-repo-' + Date.now();
+            }
             
             console.log(`使用${useSimpleMode ? '简化' : '标准'}模式创建仓库:`, requestBody);
             
