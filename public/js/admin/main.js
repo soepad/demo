@@ -150,6 +150,8 @@ document.addEventListener('DOMContentLoaded', () => {
     initDashboard();
             console.log('初始化图片管理');
     initImageManagement();
+            console.log('初始化仓库管理');
+    initRepositoryManagement();
             console.log('初始化批量操作');
             initBatchOperations();
             console.log('初始化系统设置');
@@ -345,6 +347,9 @@ document.addEventListener('DOMContentLoaded', () => {
 function initSettings() {
     console.log('初始化系统设置');
     const settingsForm = document.getElementById('settingsForm');
+    const repositorySettingsForm = document.getElementById('repositorySettingsForm');
+    const uploadSettingsForm = document.getElementById('uploadSettingsForm');
+    const imageProcessingSettingsForm = document.getElementById('imageProcessingSettingsForm');
     const passwordForm = document.getElementById('passwordForm');
     
     if (!settingsForm) {
@@ -358,13 +363,57 @@ function initSettings() {
             .then(settings => {
                 if (!settings.error) {
                     console.log('已加载设置:', settings);
-                    // 更新表单值
+                    
+                    // 填充基本设置
+                    const siteName = document.getElementById('siteName');
                     const allowGuestUpload = document.getElementById('allowGuestUpload');
+                    
+                    if (siteName) {
+                        siteName.value = settings.site_name || '';
+                    }
                     
                     if (allowGuestUpload) {
                         // 确保使用严格比较，string类型的'true'转换为布尔值
                         allowGuestUpload.checked = settings.allow_guest_upload === 'true';
                         console.log('设置游客上传状态:', allowGuestUpload.checked);
+                    }
+                    
+                    // 填充仓库设置
+                    const repositorySizeThreshold = document.getElementById('repositorySizeThreshold');
+                    const repositoryNameTemplate = document.getElementById('repositoryNameTemplate');
+                    
+                    if (repositorySizeThreshold) {
+                        const thresholdMB = Math.round(parseInt(settings.repository_size_threshold || '943718400') / (1024 * 1024));
+                        repositorySizeThreshold.value = thresholdMB;
+                    }
+                    
+                    if (repositoryNameTemplate) {
+                        repositoryNameTemplate.value = settings.repository_name_template || '';
+                    }
+                    
+                    // 填充上传设置
+                    const maxFileSize = document.getElementById('maxFileSize');
+                    const allowedTypes = document.getElementById('allowedTypes');
+                    
+                    if (maxFileSize) {
+                        const maxFileSizeMB = Math.round(parseInt(settings.max_file_size || '10485760') / (1024 * 1024));
+                        maxFileSize.value = maxFileSizeMB;
+                    }
+                    
+                    if (allowedTypes) {
+                        allowedTypes.value = settings.allowed_types || 'image/jpeg,image/png,image/gif,image/webp';
+                    }
+                    
+                    // 填充图像处理设置
+                    const enableCompression = document.getElementById('enableCompression');
+                    const compressionQuality = document.getElementById('compressionQuality');
+                    
+                    if (enableCompression) {
+                        enableCompression.checked = settings.enable_compression === 'true';
+                    }
+                    
+                    if (compressionQuality) {
+                        compressionQuality.value = settings.compression_quality || '80';
                     }
                 }
             })
@@ -373,15 +422,16 @@ function initSettings() {
                 showNotification('加载设置失败', 'error');
             });
         
-        // 处理设置表单提交
+        // 处理基本设置表单提交
         settingsForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const settings = {
+                site_name: document.getElementById('siteName').value,
                 allow_guest_upload: document.getElementById('allowGuestUpload').checked ? 'true' : 'false'
             };
             
-            console.log('保存设置:', settings);
+            console.log('保存基本设置:', settings);
             
             try {
                 const response = await safeApiCall('/api/settings', {
@@ -393,17 +443,149 @@ function initSettings() {
                 });
                 
                 if (!response.error) {
-                    console.log('设置保存成功');
-                    showNotification('设置已保存', 'success');
+                    console.log('基本设置保存成功');
+                    showNotification('基本设置已保存', 'success');
                 } else {
-                    console.error('保存设置失败:', response.error);
-                    showNotification('保存设置失败: ' + response.error, 'error');
+                    console.error('保存基本设置失败:', response.error);
+                    showNotification('保存基本设置失败: ' + response.error, 'error');
                 }
             } catch (error) {
-                showNotification('保存设置失败', 'error');
-                console.error('保存设置出错:', error);
+                showNotification('保存基本设置失败', 'error');
+                console.error('保存基本设置出错:', error);
             }
         });
+        
+        // 处理仓库设置表单提交
+        if (repositorySettingsForm) {
+            repositorySettingsForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const thresholdMB = parseInt(document.getElementById('repositorySizeThreshold').value);
+                const nameTemplate = document.getElementById('repositoryNameTemplate').value;
+                
+                // 验证阈值
+                if (thresholdMB > 1000) {
+                    showNotification('仓库大小阈值不能超过1GB', 'error');
+                    return;
+                }
+                
+                if (thresholdMB > 900) {
+                    const confirm = window.confirm('不建议将仓库大小阈值设置超过900MB，这可能导致GitHub仓库被警告。是否继续？');
+                    if (!confirm) {
+                        return;
+                    }
+                }
+                
+                const settings = {
+                    repository_size_threshold: (thresholdMB * 1024 * 1024).toString(),
+                    repository_name_template: nameTemplate
+                };
+                
+                console.log('保存仓库设置:', settings);
+                
+                try {
+                    const response = await safeApiCall('/api/settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(settings)
+                    });
+                    
+                    if (!response.error) {
+                        console.log('仓库设置保存成功');
+                        showNotification('仓库设置已保存', 'success');
+                    } else {
+                        console.error('保存仓库设置失败:', response.error);
+                        showNotification('保存仓库设置失败: ' + response.error, 'error');
+                    }
+                } catch (error) {
+                    showNotification('保存仓库设置失败', 'error');
+                    console.error('保存仓库设置出错:', error);
+                }
+            });
+        }
+        
+        // 处理上传设置表单提交
+        if (uploadSettingsForm) {
+            uploadSettingsForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const maxFileSizeMB = parseInt(document.getElementById('maxFileSize').value);
+                const allowedTypesValue = document.getElementById('allowedTypes').value;
+                
+                const settings = {
+                    max_file_size: (maxFileSizeMB * 1024 * 1024).toString(),
+                    allowed_types: allowedTypesValue
+                };
+                
+                console.log('保存上传设置:', settings);
+                
+                try {
+                    const response = await safeApiCall('/api/settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(settings)
+                    });
+                    
+                    if (!response.error) {
+                        console.log('上传设置保存成功');
+                        showNotification('上传设置已保存', 'success');
+                        
+                        // 更新全局允许的文件类型
+                        if (allowedTypesValue) {
+                            allowedFileTypes = allowedTypesValue.split(',');
+                        }
+                    } else {
+                        console.error('保存上传设置失败:', response.error);
+                        showNotification('保存上传设置失败: ' + response.error, 'error');
+                    }
+                } catch (error) {
+                    showNotification('保存上传设置失败', 'error');
+                    console.error('保存上传设置出错:', error);
+                }
+            });
+        }
+        
+        // 处理图像处理设置表单提交
+        if (imageProcessingSettingsForm) {
+            imageProcessingSettingsForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const enableCompression = document.getElementById('enableCompression').checked;
+                const compressionQuality = document.getElementById('compressionQuality').value;
+                
+                const settings = {
+                    enable_compression: enableCompression ? 'true' : 'false',
+                    compression_quality: compressionQuality
+                };
+                
+                console.log('保存图像处理设置:', settings);
+                
+                try {
+                    const response = await safeApiCall('/api/settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(settings)
+                    });
+                    
+                    if (!response.error) {
+                        console.log('图像处理设置保存成功');
+                        showNotification('图像处理设置已保存', 'success');
+                    } else {
+                        console.error('保存图像处理设置失败:', response.error);
+                        showNotification('保存图像处理设置失败: ' + response.error, 'error');
+                    }
+                } catch (error) {
+                    showNotification('保存图像处理设置失败', 'error');
+                    console.error('保存图像处理设置出错:', error);
+                }
+            });
+        }
 
         // 处理密码修改表单提交
         if (passwordForm) {
@@ -685,6 +867,285 @@ function initImageManagement() {
     } else {
         console.warn('未找到上传按钮');
     }
+}
+
+// 初始化仓库管理功能
+function initRepositoryManagement() {
+    console.log('初始化仓库管理');
+    const createRepoBtn = document.getElementById('createRepoBtn');
+    const refreshReposBtn = document.getElementById('refreshReposBtn');
+    const repoGrid = document.getElementById('repoGrid');
+    
+    if (!repoGrid) {
+        console.error('未找到仓库网格元素');
+        return;
+    }
+    
+    // 加载仓库列表
+    async function loadRepositories() {
+        try {
+            repoGrid.innerHTML = `
+                <div class="loading-indicator">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>正在加载仓库列表...</span>
+                </div>
+            `;
+            
+            const response = await safeApiCall('/api/repositories');
+            
+            if (response.error) {
+                throw new Error(response.error);
+            }
+            
+            const repositories = response.data || [];
+            
+            if (repositories.length === 0) {
+                repoGrid.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-database"></i>
+                        <p>暂无仓库</p>
+                        <button class="btn btn-primary" id="emptyCreateRepoBtn">
+                            <i class="fas fa-plus"></i> 创建第一个仓库
+                        </button>
+                    </div>
+                `;
+                
+                document.getElementById('emptyCreateRepoBtn').addEventListener('click', createRepository);
+                return;
+            }
+            
+            // 渲染仓库列表
+            repoGrid.innerHTML = '';
+            repositories.forEach(repo => {
+                const repoCard = createRepositoryCard(repo);
+                repoGrid.appendChild(repoCard);
+            });
+        } catch (error) {
+            console.error('加载仓库列表失败:', error);
+            repoGrid.innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>加载仓库列表失败</p>
+                    <p class="error-message">${error.message}</p>
+                    <button class="btn btn-secondary" id="retryLoadReposBtn">
+                        <i class="fas fa-redo"></i> 重试
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('retryLoadReposBtn').addEventListener('click', loadRepositories);
+        }
+    }
+    
+    // 创建仓库卡片
+    function createRepositoryCard(repo) {
+        const card = document.createElement('div');
+        card.className = 'repo-card';
+        card.dataset.repoId = repo.id;
+        
+        const usedSizeMB = Math.round(repo.size / (1024 * 1024) * 100) / 100;
+        const maxSizeMB = Math.round(parseInt(repo.max_size || '943718400') / (1024 * 1024));
+        const usagePercent = Math.min(Math.round((repo.size / parseInt(repo.max_size || '943718400')) * 100), 100);
+        
+        card.innerHTML = `
+            <div class="repo-header">
+                <h3 class="repo-name">${repo.name}</h3>
+                <div class="repo-status ${repo.is_active ? 'active' : 'inactive'}">
+                    ${repo.is_active ? '当前使用' : '未使用'}
+                </div>
+            </div>
+            <div class="repo-info">
+                <div class="info-item">
+                    <i class="fas fa-file-image"></i>
+                    <span>${repo.file_count || 0} 个文件</span>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-hdd"></i>
+                    <span>${usedSizeMB} MB / ${maxSizeMB} MB</span>
+                </div>
+                <div class="info-item">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>创建于 ${formatDate(repo.created_at)}</span>
+                </div>
+            </div>
+            <div class="repo-usage-bar">
+                <div class="usage-fill" style="width: ${usagePercent}%"></div>
+                <span class="usage-text">${usagePercent}%</span>
+            </div>
+            <div class="repo-actions">
+                <button class="btn btn-sm ${repo.is_active ? 'btn-disabled' : 'btn-primary'}" ${repo.is_active ? 'disabled' : ''} data-action="activate">
+                    <i class="fas fa-check-circle"></i> 设为活跃
+                </button>
+                <button class="btn btn-sm btn-secondary" data-action="details">
+                    <i class="fas fa-info-circle"></i> 详情
+                </button>
+            </div>
+        `;
+        
+        // 添加事件监听
+        const activateBtn = card.querySelector('[data-action="activate"]');
+        const detailsBtn = card.querySelector('[data-action="details"]');
+        
+        if (activateBtn) {
+            activateBtn.addEventListener('click', () => activateRepository(repo.id));
+        }
+        
+        if (detailsBtn) {
+            detailsBtn.addEventListener('click', () => showRepositoryDetails(repo));
+        }
+        
+        return card;
+    }
+    
+    // 创建新仓库
+    async function createRepository() {
+        try {
+            const repoName = prompt('请输入仓库名称（留空使用默认命名规则）:');
+            
+            if (repoName === null) {
+                return; // 用户取消
+            }
+            
+            const loadingToast = showNotification('正在创建仓库...', 'info', 0);
+            
+            const response = await safeApiCall('/api/repositories', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: repoName || undefined
+                })
+            });
+            
+            // 关闭加载提示
+            document.body.removeChild(loadingToast);
+            
+            if (response.error) {
+                throw new Error(response.error);
+            }
+            
+            showNotification('仓库创建成功', 'success');
+            loadRepositories(); // 重新加载仓库列表
+        } catch (error) {
+            console.error('创建仓库失败:', error);
+            showNotification('创建仓库失败: ' + error.message, 'error');
+        }
+    }
+    
+    // 激活仓库
+    async function activateRepository(repoId) {
+        try {
+            const loadingToast = showNotification('正在设置活跃仓库...', 'info', 0);
+            
+            const response = await safeApiCall(`/api/repositories/${repoId}/activate`, {
+                method: 'POST'
+            });
+            
+            // 关闭加载提示
+            document.body.removeChild(loadingToast);
+            
+            if (response.error) {
+                throw new Error(response.error);
+            }
+            
+            showNotification('已成功设置活跃仓库', 'success');
+            loadRepositories(); // 重新加载仓库列表
+        } catch (error) {
+            console.error('设置活跃仓库失败:', error);
+            showNotification('设置活跃仓库失败: ' + error.message, 'error');
+        }
+    }
+    
+    // 显示仓库详情
+    function showRepositoryDetails(repo) {
+        // 创建模态框
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        
+        const usedSizeMB = Math.round(repo.size / (1024 * 1024) * 100) / 100;
+        const maxSizeMB = Math.round(parseInt(repo.max_size || '943718400') / (1024 * 1024));
+        const usagePercent = Math.min(Math.round((repo.size / parseInt(repo.max_size || '943718400')) * 100), 100);
+        
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>仓库详情: ${repo.name}</h3>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="repo-details">
+                        <div class="detail-item">
+                            <strong>仓库ID:</strong> ${repo.id}
+                        </div>
+                        <div class="detail-item">
+                            <strong>状态:</strong> 
+                            <span class="repo-status ${repo.is_active ? 'active' : 'inactive'}">
+                                ${repo.is_active ? '当前使用' : '未使用'}
+                            </span>
+                        </div>
+                        <div class="detail-item">
+                            <strong>文件数量:</strong> ${repo.file_count || 0}
+                        </div>
+                        <div class="detail-item">
+                            <strong>使用空间:</strong> ${usedSizeMB} MB / ${maxSizeMB} MB (${usagePercent}%)
+                        </div>
+                        <div class="detail-item">
+                            <strong>创建时间:</strong> ${formatDate(repo.created_at)}
+                        </div>
+                        <div class="detail-item">
+                            <strong>最后更新:</strong> ${formatDate(repo.updated_at)}
+                        </div>
+                        <div class="detail-item">
+                            <strong>GitHub仓库:</strong> 
+                            <a href="${repo.html_url}" target="_blank">${repo.full_name}</a>
+                        </div>
+                    </div>
+                    
+                    <div class="repo-usage-bar">
+                        <div class="usage-fill" style="width: ${usagePercent}%"></div>
+                        <span class="usage-text">${usagePercent}%</span>
+                    </div>
+                    
+                    <div class="repo-actions">
+                        ${!repo.is_active ? `
+                            <button class="btn btn-primary" id="activateRepoBtn">
+                                <i class="fas fa-check-circle"></i> 设为活跃仓库
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // 添加事件监听
+        const closeBtn = modal.querySelector('.close-btn');
+        closeBtn.addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        const activateRepoBtn = modal.querySelector('#activateRepoBtn');
+        if (activateRepoBtn) {
+            activateRepoBtn.addEventListener('click', () => {
+                document.body.removeChild(modal);
+                activateRepository(repo.id);
+            });
+        }
+    }
+    
+    // 添加事件监听
+    if (createRepoBtn) {
+        createRepoBtn.addEventListener('click', createRepository);
+    }
+    
+    if (refreshReposBtn) {
+        refreshReposBtn.addEventListener('click', loadRepositories);
+    }
+    
+    // 初始加载仓库列表
+    loadRepositories();
 }
 
 // 初始化批量操作按钮
