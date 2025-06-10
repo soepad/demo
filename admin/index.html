@@ -1,0 +1,103 @@
+<!-- 仓库设置 -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0">仓库设置</h5>
+  </div>
+  <div class="card-body">
+    <form id="repository-settings-form">
+      <div class="mb-3">
+        <label for="repository-name-template" class="form-label">仓库命名模板</label>
+        <input type="text" class="form-control" id="repository-name-template" placeholder="例如: images-repo">
+        <div class="form-text">新仓库将按照此模板命名，后面会自动添加序号，如 images-repo-1</div>
+      </div>
+      <div class="mb-3">
+        <label for="repository-size-threshold" class="form-label">仓库大小阈值 (MB)</label>
+        <input type="number" class="form-control" id="repository-size-threshold" placeholder="900">
+        <div class="form-text">当仓库大小达到此阈值时，系统会自动创建新仓库</div>
+      </div>
+      <button type="submit" class="btn btn-primary">保存设置</button>
+    </form>
+  </div>
+</div>
+
+<!-- Cloudflare API 设置 -->
+<div class="card mb-4">
+  <div class="card-header">
+    <h5 class="mb-0">Cloudflare API 设置</h5>
+  </div>
+  <div class="card-body">
+    <form id="cloudflare-api-form">
+      <div class="mb-3">
+        <label for="cf-api-token" class="form-label">Cloudflare API 令牌</label>
+        <input type="password" class="form-control" id="cf-api-token" placeholder="输入 Cloudflare API 令牌">
+        <div class="form-text">用于自动更新环境变量，需要具有 Pages 项目编辑权限</div>
+      </div>
+      <div class="mb-3">
+        <label for="cf-account-id" class="form-label">Cloudflare 账户 ID</label>
+        <input type="text" class="form-control" id="cf-account-id" placeholder="输入 Cloudflare 账户 ID">
+      </div>
+      <div class="mb-3">
+        <label for="cf-project-name" class="form-label">Cloudflare Pages 项目名称</label>
+        <input type="text" class="form-control" id="cf-project-name" placeholder="输入 Pages 项目名称">
+      </div>
+      <button type="submit" class="btn btn-primary">保存设置</button>
+    </form>
+  </div>
+</div>
+
+<script>
+// 加载 Cloudflare API 设置
+function loadCloudflareApiSettings() {
+  fetch('/api/settings/get?keys=cf_api_token,cf_account_id,cf_project_name')
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        const settings = data.data;
+        document.getElementById('cf-api-token').value = settings.cf_api_token || '';
+        document.getElementById('cf-account-id').value = settings.cf_account_id || '';
+        document.getElementById('cf-project-name').value = settings.cf_project_name || '';
+      }
+    })
+    .catch(error => {
+      console.error('加载 Cloudflare API 设置失败:', error);
+      showToast('加载 Cloudflare API 设置失败', 'danger');
+    });
+}
+
+// 保存 Cloudflare API 设置
+document.getElementById('cloudflare-api-form').addEventListener('submit', function(e) {
+  e.preventDefault();
+  
+  const settings = {
+    cf_api_token: document.getElementById('cf-api-token').value,
+    cf_account_id: document.getElementById('cf-account-id').value,
+    cf_project_name: document.getElementById('cf-project-name').value
+  };
+  
+  fetch('/api/settings/update', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(settings)
+  })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showToast('Cloudflare API 设置已保存', 'success');
+      } else {
+        showToast('保存 Cloudflare API 设置失败: ' + data.error, 'danger');
+      }
+    })
+    .catch(error => {
+      console.error('保存 Cloudflare API 设置失败:', error);
+      showToast('保存 Cloudflare API 设置失败', 'danger');
+    });
+});
+
+// 页面加载完成后执行
+document.addEventListener('DOMContentLoaded', function() {
+  // 加载 Cloudflare API 设置
+  loadCloudflareApiSettings();
+});
+</script> 
