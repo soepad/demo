@@ -197,6 +197,74 @@
                     </div>
 
                     <div class="settings-card" style="margin-top: 20px;">
+                        <h3>仓库设置</h3>
+                        <form id="repositorySettingsForm" class="settings-form">
+                            <div class="form-group">
+                                <label for="repositorySizeThreshold">仓库大小阈值 (MB)</label>
+                                <input type="number" id="repositorySizeThreshold" name="repository_size_threshold" class="form-control" min="100" max="1000" step="1">
+                                <small class="form-text">设置仓库大小阈值，达到此阈值后将自动切换到新仓库。建议不超过900MB，最大不能超过1GB。</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="repositoryNameTemplate">仓库命名规则</label>
+                                <input type="text" id="repositoryNameTemplate" name="repository_name_template" class="form-control" placeholder="例如: images-repo">
+                                <small class="form-text">设置新建仓库的基础名称，系统将自动添加序号，如 images-repo-1。如不设置，将基于当前仓库名称生成。</small>
+                            </div>
+                            <div class="form-group">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i>
+                                    保存设置
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="settings-card" style="margin-top: 20px;">
+                        <h3>上传设置</h3>
+                        <form id="uploadSettingsForm" class="settings-form">
+                            <div class="form-group">
+                                <label for="maxFileSize">最大文件大小 (MB)</label>
+                                <input type="number" id="maxFileSize" name="max_file_size" class="form-control" min="1" max="25" step="1">
+                            </div>
+                            <div class="form-group">
+                                <label for="allowedTypes">允许的文件类型</label>
+                                <input type="text" id="allowedTypes" name="allowed_types" class="form-control">
+                                <small class="form-text">使用逗号分隔的MIME类型，例如：image/jpeg,image/png,image/gif</small>
+                            </div>
+                            <div class="form-group">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i>
+                                    保存设置
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="settings-card" style="margin-top: 20px;">
+                        <h3>图像处理设置</h3>
+                        <form id="imageProcessingSettingsForm" class="settings-form">
+                            <div class="form-group">
+                                <label class="switch-label">
+                                    <span>启用图像压缩</span>
+                                    <label class="switch">
+                                        <input type="checkbox" id="enableCompression" name="enable_compression">
+                                        <span class="slider"></span>
+                                    </label>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label for="compressionQuality">压缩质量 (1-100)</label>
+                                <input type="number" id="compressionQuality" name="compression_quality" class="form-control" min="1" max="100" step="1">
+                            </div>
+                            <div class="form-group">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i>
+                                    保存设置
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="settings-card" style="margin-top: 20px;">
                         <h3>修改密码</h3>
                         <form id="passwordForm" class="settings-form">
                             <div class="form-group">
