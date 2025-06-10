@@ -204,7 +204,7 @@ export async function createNewRepository(env, currentRepoName) {
           repo: newRepoName,
           path: 'public/images/.gitkeep',
           message: '初始化图片目录',
-          content: Buffer.from('').toString('base64')
+          content: btoa('') // 使用btoa代替Buffer进行base64编码
         });
       } else {
         throw error;
