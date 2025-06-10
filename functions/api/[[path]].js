@@ -1438,13 +1438,15 @@ export async function onRequest(context) {
 
           console.log('要删除的图片信息:', image);
 
+          let githubDeleteSuccess = false;
+          
           // 从GitHub删除图片
           try {
             const octokit = new Octokit({
               auth: env.GITHUB_TOKEN
             });
 
-            await octokit.rest.repos.deleteFile({
+            const githubResponse = await octokit.rest.repos.deleteFile({
               owner: env.GITHUB_OWNER,
               repo: env.GITHUB_REPO,
               path: image.github_path,
@@ -1453,10 +1455,11 @@ export async function onRequest(context) {
               branch: 'main'
             });
 
-            console.log('从GitHub删除图片成功');
+            console.log('从GitHub删除图片成功:', githubResponse);
+            githubDeleteSuccess = true;
           } catch (githubError) {
             console.error('从GitHub删除图片失败:', githubError);
-            // 即使GitHub删除失败，我们仍然从数据库中删除记录
+            // 我们会继续尝试删除数据库记录，但会记录GitHub删除失败
           }
 
           // 从数据库删除图片
@@ -1471,7 +1474,10 @@ export async function onRequest(context) {
             console.error('图片删除后部署失败:', deployResult.error);
           }
 
-          return new Response(JSON.stringify({ success: true }), {
+          return new Response(JSON.stringify({ 
+            success: true,
+            github_delete_success: githubDeleteSuccess
+          }), {
             headers: {
               'Content-Type': 'application/json',
               ...corsHeaders
@@ -1567,7 +1573,8 @@ export async function onRequest(context) {
         // 初始化结果计数
         const results = {
           success: [],
-          failed: []
+          failed: [],
+          github_results: [] // 添加GitHub操作结果
         };
         
         // 使用GitHub API删除文件
@@ -1605,14 +1612,23 @@ export async function onRequest(context) {
         // 批量删除GitHub上的文件
         for (const image of images) {
           try {
-            // 从GitHub仓库删除文件，指定参数禁止自动部署
-            await octokit.rest.repos.deleteFile({
+            console.log(`正在从GitHub删除图片: ${image.filename}, path: ${image.github_path}, sha: ${image.sha}`);
+            
+            // 从GitHub仓库删除文件
+            const githubResponse = await octokit.rest.repos.deleteFile({
               owner: env.GITHUB_OWNER,
               repo: env.GITHUB_REPO,
               path: image.github_path,
-              message: `Delete ${image.filename} [skip ci]`, // 添加[skip ci]标记，避免自动部署
+              message: `Delete ${image.filename}`,
               sha: image.sha,
               branch: 'main'
+            });
+            
+            results.github_results.push({
+              id: image.id,
+              filename: image.filename,
+              success: true,
+              response: githubResponse.status
             });
             
             // 从数据库删除记录
@@ -1625,10 +1641,29 @@ export async function onRequest(context) {
             console.log(`成功删除图片: ${image.filename}`);
           } catch (error) {
             console.error(`删除图片 ${image.id} 失败:`, error);
-            results.failed.push({
-              id: image.id,
-              error: error.message || '删除失败'
-            });
+            
+            // 尝试从数据库删除记录，即使GitHub删除失败
+            try {
+              await env.DB.prepare(`
+                DELETE FROM images 
+                WHERE id = ?
+              `).bind(image.id).run();
+              
+              console.log(`图片 ${image.id} 从GitHub删除失败，但已从数据库中删除`);
+              results.success.push(image.id);
+              results.github_results.push({
+                id: image.id,
+                filename: image.filename,
+                success: false,
+                error: error.message || '从GitHub删除失败'
+              });
+            } catch (dbError) {
+              console.error(`从数据库删除图片 ${image.id} 失败:`, dbError);
+              results.failed.push({
+                id: image.id,
+                error: `GitHub: ${error.message}, 数据库: ${dbError.message}`
+              });
+            }
           }
         }
         
