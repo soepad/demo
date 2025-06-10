@@ -904,13 +904,9 @@ function initRepositoryManagement() {
                     <div class="empty-state">
                         <i class="fas fa-database"></i>
                         <p>暂无仓库</p>
-                        <button class="btn btn-primary" id="emptyCreateRepoBtn">
-                            <i class="fas fa-plus"></i> 创建第一个仓库
-                        </button>
+                        <p>请点击上方的"创建新仓库"按钮创建第一个仓库</p>
                     </div>
                 `;
-                
-                document.getElementById('emptyCreateRepoBtn').addEventListener('click', createRepository);
                 return;
             }
             
@@ -1031,31 +1027,48 @@ function initRepositoryManagement() {
             
             const loadingToast = showNotification('正在创建仓库...', 'info', 0);
             
-            console.log('创建仓库请求参数:', { baseName: repoName || undefined });
+            // 使用简单的请求参数
+            const requestBody = {};
+            if (repoName && repoName.trim() !== '') {
+                requestBody.baseName = repoName.trim();
+            }
             
-            const response = await safeApiCall('/api/repositories', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    baseName: repoName || undefined
-                })
-            });
+            console.log('创建仓库请求参数:', requestBody);
             
-            // 关闭加载提示
             try {
-                document.body.removeChild(loadingToast);
-            } catch (e) {
-                console.warn('无法移除加载提示:', e);
+                const response = await safeApiCall('/api/repositories', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody),
+                    timeout: 30000 // 增加超时时间到30秒
+                });
+                
+                // 关闭加载提示
+                try {
+                    document.body.removeChild(loadingToast);
+                } catch (e) {
+                    console.warn('无法移除加载提示:', e);
+                }
+                
+                if (response.error) {
+                    throw new Error(response.error);
+                }
+                
+                console.log('仓库创建成功:', response);
+                showNotification('仓库创建成功', 'success');
+                loadRepositories(); // 重新加载仓库列表
+            } catch (fetchError) {
+                // 关闭加载提示
+                try {
+                    document.body.removeChild(loadingToast);
+                } catch (e) {
+                    console.warn('无法移除加载提示:', e);
+                }
+                
+                throw fetchError;
             }
-            
-            if (response.error) {
-                throw new Error(response.error);
-            }
-            
-            showNotification('仓库创建成功', 'success');
-            loadRepositories(); // 重新加载仓库列表
         } catch (error) {
             console.error('创建仓库失败:', error);
             showNotification('创建仓库失败: ' + error.message, 'error');
