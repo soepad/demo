@@ -1764,4 +1764,163 @@ body.mobile-view .image-checkbox {
         padding: 12px 15px;
         font-size: 16px; /* 增大字体以更容易点击 */
     }
+}
+
+/* 仓库管理样式 */
+.repo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.repo-card {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.repo-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.repo-header {
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.repo-name {
+    font-size: 18px;
+    margin: 0;
+}
+
+.repo-status {
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.repo-status.active {
+    background-color: var(--success-color);
+    color: white;
+}
+
+.repo-status.inactive {
+    background-color: #ccc;
+    color: #333;
+}
+
+.repo-info {
+    padding: 15px;
+}
+
+.info-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.info-item i {
+    width: 20px;
+    margin-right: 10px;
+    color: var(--primary-color);
+}
+
+.repo-usage-bar {
+    height: 10px;
+    background-color: #f0f0f0;
+    position: relative;
+    overflow: hidden;
+}
+
+.usage-fill {
+    height: 100%;
+    background-color: var(--primary-color);
+    position: absolute;
+    left: 0;
+    top: 0;
+    transition: width 0.3s ease;
+}
+
+.usage-fill.warning {
+    background-color: var(--warning-color);
+}
+
+.usage-fill.danger {
+    background-color: var(--danger-color);
+}
+
+.usage-text {
+    position: absolute;
+    right: 10px;
+    top: -10px;
+    font-size: 10px;
+    color: #666;
+}
+
+.repo-actions {
+    padding: 15px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.loading-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    color: #666;
+}
+
+.loading-indicator i {
+    font-size: 30px;
+    color: var(--primary-color);
+    margin-bottom: 10px;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    color: #666;
+}
+
+.empty-state i {
+    font-size: 50px;
+    color: #ccc;
+    margin-bottom: 20px;
+}
+
+.error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+    color: var(--danger-color);
+}
+
+.error-state i {
+    font-size: 50px;
+    margin-bottom: 20px;
+}
+
+.error-message {
+    margin-bottom: 20px;
+    color: #666;
 } 
