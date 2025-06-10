@@ -943,15 +943,38 @@ function initRepositoryManagement() {
         card.className = 'repo-card';
         card.dataset.repoId = repo.id;
         
-        const usedSizeMB = Math.round(repo.size / (1024 * 1024) * 100) / 100;
+        const usedSizeMB = Math.round(repo.size_estimate / (1024 * 1024) * 100) / 100;
         const maxSizeMB = Math.round(parseInt(repo.max_size || '943718400') / (1024 * 1024));
-        const usagePercent = Math.min(Math.round((repo.size / parseInt(repo.max_size || '943718400')) * 100), 100);
+        const usagePercent = Math.min(Math.round((repo.size_estimate / parseInt(repo.max_size || '943718400')) * 100), 100);
+        
+        // 确定仓库状态样式和文本
+        let statusClass = 'inactive';
+        let statusText = '未使用';
+        
+        if (repo.status === 'active') {
+            statusClass = 'active';
+            statusText = '当前使用';
+        } else if (repo.status === 'inactive') {
+            statusClass = 'inactive';
+            statusText = '未使用';
+        } else if (repo.status === 'full') {
+            statusClass = 'full';
+            statusText = '已满';
+        }
+        
+        // 确定使用率颜色
+        let usageFillClass = '';
+        if (usagePercent > 90) {
+            usageFillClass = 'danger';
+        } else if (usagePercent > 70) {
+            usageFillClass = 'warning';
+        }
         
         card.innerHTML = `
             <div class="repo-header">
                 <h3 class="repo-name">${repo.name}</h3>
-                <div class="repo-status ${repo.is_active ? 'active' : 'inactive'}">
-                    ${repo.is_active ? '当前使用' : '未使用'}
+                <div class="repo-status ${statusClass}">
+                    ${statusText}
                 </div>
             </div>
             <div class="repo-info">
@@ -969,11 +992,11 @@ function initRepositoryManagement() {
                 </div>
             </div>
             <div class="repo-usage-bar">
-                <div class="usage-fill" style="width: ${usagePercent}%"></div>
+                <div class="usage-fill ${usageFillClass}" style="width: ${usagePercent}%"></div>
                 <span class="usage-text">${usagePercent}%</span>
             </div>
             <div class="repo-actions">
-                <button class="btn btn-sm ${repo.is_active ? 'btn-disabled' : 'btn-primary'}" ${repo.is_active ? 'disabled' : ''} data-action="activate">
+                <button class="btn btn-sm ${repo.status === 'active' ? 'btn-disabled' : 'btn-primary'}" ${repo.status === 'active' ? 'disabled' : ''} data-action="activate">
                     <i class="fas fa-check-circle"></i> 设为活跃
                 </button>
                 <button class="btn btn-sm btn-secondary" data-action="details">
@@ -1008,18 +1031,24 @@ function initRepositoryManagement() {
             
             const loadingToast = showNotification('正在创建仓库...', 'info', 0);
             
+            console.log('创建仓库请求参数:', { baseName: repoName || undefined });
+            
             const response = await safeApiCall('/api/repositories', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    name: repoName || undefined
+                    baseName: repoName || undefined
                 })
             });
             
             // 关闭加载提示
-            document.body.removeChild(loadingToast);
+            try {
+                document.body.removeChild(loadingToast);
+            } catch (e) {
+                console.warn('无法移除加载提示:', e);
+            }
             
             if (response.error) {
                 throw new Error(response.error);
@@ -1063,9 +1092,32 @@ function initRepositoryManagement() {
         const modal = document.createElement('div');
         modal.className = 'modal';
         
-        const usedSizeMB = Math.round(repo.size / (1024 * 1024) * 100) / 100;
+        const usedSizeMB = Math.round(repo.size_estimate / (1024 * 1024) * 100) / 100;
         const maxSizeMB = Math.round(parseInt(repo.max_size || '943718400') / (1024 * 1024));
-        const usagePercent = Math.min(Math.round((repo.size / parseInt(repo.max_size || '943718400')) * 100), 100);
+        const usagePercent = Math.min(Math.round((repo.size_estimate / parseInt(repo.max_size || '943718400')) * 100), 100);
+        
+        // 确定仓库状态样式和文本
+        let statusClass = 'inactive';
+        let statusText = '未使用';
+        
+        if (repo.status === 'active') {
+            statusClass = 'active';
+            statusText = '当前使用';
+        } else if (repo.status === 'inactive') {
+            statusClass = 'inactive';
+            statusText = '未使用';
+        } else if (repo.status === 'full') {
+            statusClass = 'full';
+            statusText = '已满';
+        }
+        
+        // 确定使用率颜色
+        let usageFillClass = '';
+        if (usagePercent > 90) {
+            usageFillClass = 'danger';
+        } else if (usagePercent > 70) {
+            usageFillClass = 'warning';
+        }
         
         modal.innerHTML = `
             <div class="modal-content">
@@ -1080,8 +1132,8 @@ function initRepositoryManagement() {
                         </div>
                         <div class="detail-item">
                             <strong>状态:</strong> 
-                            <span class="repo-status ${repo.is_active ? 'active' : 'inactive'}">
-                                ${repo.is_active ? '当前使用' : '未使用'}
+                            <span class="repo-status ${statusClass}">
+                                ${statusText}
                             </span>
                         </div>
                         <div class="detail-item">
@@ -1098,17 +1150,17 @@ function initRepositoryManagement() {
                         </div>
                         <div class="detail-item">
                             <strong>GitHub仓库:</strong> 
-                            <a href="${repo.html_url}" target="_blank">${repo.full_name}</a>
+                            <a href="${repo.html_url}" target="_blank">${repo.full_name || repo.name}</a>
                         </div>
                     </div>
                     
                     <div class="repo-usage-bar">
-                        <div class="usage-fill" style="width: ${usagePercent}%"></div>
+                        <div class="usage-fill ${usageFillClass}" style="width: ${usagePercent}%"></div>
                         <span class="usage-text">${usagePercent}%</span>
                     </div>
                     
                     <div class="repo-actions">
-                        ${!repo.is_active ? `
+                        ${repo.status !== 'active' ? `
                             <button class="btn btn-primary" id="activateRepoBtn">
                                 <i class="fas fa-check-circle"></i> 设为活跃仓库
                             </button>
