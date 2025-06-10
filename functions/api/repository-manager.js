@@ -173,13 +173,28 @@ export async function createNewRepository(env, currentRepoName) {
     } catch (error) {
       if (error.status === 404) {
         // 仓库不存在，创建新仓库
-        await octokit.rest.repos.createInOrg({
-          org: env.GITHUB_OWNER,
-          name: newRepoName,
-          auto_init: true,
-          private: true,
-          description: `图片存储仓库 #${newRepoNumber}`
-        });
+        try {
+          console.log(`尝试创建组织仓库: ${env.GITHUB_OWNER}/${newRepoName}`);
+          
+          // 尝试创建组织仓库
+          await octokit.rest.repos.createInOrg({
+            org: env.GITHUB_OWNER,
+            name: newRepoName,
+            auto_init: true,
+            private: true,
+            description: `图片存储仓库 #${newRepoNumber}`
+          });
+        } catch (orgError) {
+          // 如果创建组织仓库失败，尝试创建个人仓库
+          console.log(`创建组织仓库失败，尝试创建个人仓库: ${env.GITHUB_OWNER}/${newRepoName}`, orgError.message);
+          
+          await octokit.rest.repos.createForAuthenticatedUser({
+            name: newRepoName,
+            auto_init: true,
+            private: true,
+            description: `图片存储仓库 #${newRepoNumber}`
+          });
+        }
         
         console.log(`成功创建新仓库: ${newRepoName}`);
         
