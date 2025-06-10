@@ -1,5 +1,6 @@
 import { Octokit } from 'octokit';
 import { v4 as uuidv4 } from 'uuid';
+import { updateReposVariable } from './cf-manager';
 
 /**
  * 获取当前活跃仓库
@@ -317,6 +318,24 @@ export async function createNewRepository(env, currentRepoName) {
       `).bind(newRepoName).run();
       
       console.log(`其他仓库已标记为非活跃`);
+
+      // 更新 REPOS 环境变量
+      if (env.CF_API_TOKEN && env.CF_ACCOUNT_ID && env.CF_PROJECT_NAME) {
+        try {
+          console.log(`尝试更新 REPOS 环境变量，添加 ${newRepoName}`);
+          const updateResult = await updateReposVariable(env, newRepoName);
+          if (updateResult.success) {
+            console.log(`REPOS 环境变量更新成功: ${updateResult.message}`);
+          } else {
+            console.error(`REPOS 环境变量更新失败: ${updateResult.error}`);
+          }
+        } catch (cfError) {
+          console.error('更新 REPOS 环境变量时出错:', cfError);
+          // 继续执行，不因为更新环境变量失败而中断
+        }
+      } else {
+        console.log('缺少 Cloudflare API 配置，跳过更新 REPOS 环境变量');
+      }
       
       // 返回新仓库信息
       return {
