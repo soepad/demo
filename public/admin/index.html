@@ -79,6 +79,12 @@
                         <span>图片管理</span>
                     </a>
                 </li>
+                <li data-page="repositories">
+                    <a href="#repositories">
+                        <i class="fas fa-database"></i>
+                        <span>仓库管理</span>
+                    </a>
+                </li>
                 <li data-page="settings">
                     <a href="#settings">
                         <i class="fas fa-cog"></i>
@@ -170,6 +176,30 @@
 
                     <div class="pagination" id="pagination">
                         <!-- 分页控件将通过 JavaScript 动态加载 -->
+                    </div>
+                </section>
+
+                <!-- 仓库管理 -->
+                <section id="repositories" class="page">
+                    <div class="toolbar">
+                        <div class="action-box">
+                            <button class="btn btn-primary" id="createRepoBtn">
+                                <i class="fas fa-plus"></i>
+                                创建新仓库
+                            </button>
+                            <button class="btn btn-secondary" id="refreshReposBtn">
+                                <i class="fas fa-sync-alt"></i>
+                                刷新列表
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="repo-grid" id="repoGrid">
+                        <!-- 仓库列表将通过 JavaScript 动态加载 -->
+                        <div class="loading-indicator">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>正在加载仓库列表...</span>
+                        </div>
                     </div>
                 </section>
 
