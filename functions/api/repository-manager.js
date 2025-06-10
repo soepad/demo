@@ -159,7 +159,7 @@ export async function createNewRepository(env, currentRepoName) {
           org: env.GITHUB_OWNER,
           name: newRepoName,
           auto_init: true,
-          private: false,
+          private: true,
           description: `图片存储仓库 #${newRepoNumber}`
         });
         
@@ -230,7 +230,28 @@ export async function checkRepositorySpaceAndAllocate(env, totalUploadSize) {
     `).first();
     
     if (!activeRepo) {
-      throw new Error('没有可用的活跃仓库');
+      console.log('没有可用的活跃仓库，尝试创建新仓库');
+      
+      // 尝试获取默认仓库名称
+      const nameTemplateSetting = await env.DB.prepare(`
+        SELECT value FROM settings WHERE key = 'repository_name_template'
+      `).first();
+      
+      let baseName = nameTemplateSetting?.value || 'images-repo';
+      
+      try {
+        // 创建新仓库
+        const newRepo = await createNewRepository(env, baseName);
+        
+        return {
+          canUpload: true,
+          repository: newRepo,
+          needNewRepo: true
+        };
+      } catch (createError) {
+        console.error('自动创建仓库失败:', createError);
+        throw new Error('没有可用的活跃仓库，且自动创建失败: ' + createError.message);
+      }
     }
     
     const remainingSpace = repoSizeThreshold - activeRepo.size_estimate;
@@ -278,12 +299,14 @@ export async function checkRepositorySpaceAndAllocate(env, totalUploadSize) {
     // 如果没有足够空间的仓库，创建新仓库
     const newRepo = await createNewRepository(env, activeRepo.name);
     
-    // 如果当前仓库接近阈值，更新其状态
+    // 如果当前仓库接近阈值，更新其状态为不活跃
     if (remainingSpace < totalUploadSize && remainingSpace < repoSizeThreshold * 0.1) {
       await env.DB.prepare(`
-        UPDATE repositories SET status = 'full', updated_at = CURRENT_TIMESTAMP
+        UPDATE repositories SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).bind(activeRepo.id).run();
+      
+      console.log(`仓库 ${activeRepo.name} 已接近大小阈值，状态更新为 'inactive'`);
     }
     
     return {
@@ -305,7 +328,7 @@ export async function checkRepositorySpaceAndAllocate(env, totalUploadSize) {
  * @param {Object} env - 环境变量
  * @param {number} repositoryId - 仓库ID
  * @param {number} fileSize - 文件大小
- * @returns {Promise<void>}
+ * @returns {Promise<Object>} - 返回更新结果，包括是否创建了新仓库
  */
 export async function updateRepositorySizeEstimate(env, repositoryId, fileSize) {
   try {
@@ -331,15 +354,41 @@ export async function updateRepositorySizeEstimate(env, repositoryId, fileSize) 
       SELECT * FROM repositories WHERE id = ?
     `).bind(repositoryId).first();
     
-    // 如果达到或超过阈值，更新状态
-    if (repo && repo.size_estimate >= repoSizeThreshold) {
+    let newRepoCreated = false;
+    
+    // 如果达到或超过阈值，更新状态为不活跃
+    if (repo && repo.size_estimate >= repoSizeThreshold && repo.status === 'active') {
+      console.log(`仓库 ${repo.name} 已达到大小阈值，状态更新为 'inactive'`);
+      
+      // 更新当前仓库状态为不活跃
       await env.DB.prepare(`
-        UPDATE repositories SET status = 'full', updated_at = CURRENT_TIMESTAMP
+        UPDATE repositories SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).bind(repositoryId).run();
       
-      console.log(`仓库 ${repo.name} 已达到大小阈值，状态更新为 'full'`);
+      // 尝试创建新仓库并设置为活跃
+      try {
+        const nameTemplateSetting = await env.DB.prepare(`
+          SELECT value FROM settings WHERE key = 'repository_name_template'
+        `).first();
+        
+        let baseName = nameTemplateSetting?.value || repo.name;
+        
+        // 创建新仓库
+        const newRepo = await createNewRepository(env, baseName);
+        newRepoCreated = true;
+        
+        console.log(`已自动创建新仓库: ${newRepo.repo}`);
+      } catch (createError) {
+        console.error('自动创建新仓库失败:', createError);
+      }
     }
+    
+    return {
+      updated: true,
+      newRepoCreated,
+      repositoryId
+    };
   } catch (error) {
     console.error('更新仓库大小估算失败:', error);
     throw error;
