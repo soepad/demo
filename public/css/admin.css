@@ -1817,6 +1817,11 @@ body.mobile-view .image-checkbox {
     color: #333;
 }
 
+.repo-status.full {
+    background-color: var(--danger-color);
+    color: white;
+}
+
 .repo-info {
     padding: 15px;
 }
