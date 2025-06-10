@@ -1049,9 +1049,8 @@ function initRepositoryManagement() {
     
     /**
      * 创建新仓库
-     * @param {boolean} useSimpleMode - 是否使用简化模式（不调用GitHub API）
      */
-    async function createRepository(useSimpleMode = true) {
+    async function createRepository() {
         const createBtn = this;
         const originalText = createBtn.innerHTML;
         
@@ -1069,19 +1068,12 @@ function initRepositoryManagement() {
                 baseName = 'images-repo';
             }
             
-            // 使用正确的API端点
+            // 使用API端点
             let endpoint = '/api/repositories';
             
-            let requestBody = useSimpleMode ? 
-                { repoName: `${baseName}-${Date.now()}` } : 
-                { baseName, useSimpleMode };
+            let requestBody = { baseName };
             
-            // 确保repoName不为空或不是以'-'开头
-            if (useSimpleMode && (!requestBody.repoName || requestBody.repoName.startsWith('-'))) {
-                requestBody.repoName = 'images-repo-' + Date.now();
-            }
-            
-            console.log(`使用${useSimpleMode ? '简化' : '标准'}模式创建仓库:`, requestBody);
+            console.log(`创建仓库:`, requestBody);
             
             // 调用API创建仓库
             const result = await safeApiCall(endpoint, {
@@ -1109,15 +1101,6 @@ function initRepositoryManagement() {
         } catch (error) {
             console.error('创建仓库失败:', error);
             showToast('创建仓库失败: ' + error.message, 'error');
-            
-            // 如果标准模式失败，提示用户尝试简化模式
-            if (!useSimpleMode) {
-                const trySimpleMode = confirm('标准模式创建失败，是否尝试使用简化模式创建仓库？（不调用GitHub API）');
-                if (trySimpleMode) {
-                    createRepository.call(createBtn, true);
-                    return;
-                }
-            }
         } finally {
             // 恢复按钮状态
             if (createBtn) {
@@ -1255,12 +1238,8 @@ function initRepositoryManagement() {
     // 添加事件监听
     if (createRepoBtn) {
         createRepoBtn.addEventListener('click', function() {
-            // 获取是否使用简化模式
-            const useSimpleModeCheckbox = document.getElementById('useSimpleMode');
-            const useSimpleMode = useSimpleModeCheckbox ? useSimpleModeCheckbox.checked : true;
-            
             // 调用创建仓库函数
-            createRepository.call(this, useSimpleMode);
+            createRepository.call(this);
         });
     }
     
