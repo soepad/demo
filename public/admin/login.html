@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>参界图床管理后台登录 - CloudFlare Pages图床管理系统</title>
+    <link rel="stylesheet" href="/css/admin.css">
+    <!-- 添加内联样式解决字体加载问题 -->
+    <style>
+        /* 解决Google字体加载失败问题 */
+        @font-face {
+            font-family: 'Roboto';
+            font-style: normal;
+            font-weight: 400;
+            src: local('Arial'), local('Helvetica'), local('sans-serif');
+        }
+        
+        /* 确保reCAPTCHA居中显示 */
+        #recaptchaContainer {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 20px auto;
+        }
+        
+        /* 修复可能的字体显示问题 */
+        body, input, button {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <h1>参界图床管理后台登录</h1>
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="username">用户名</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">密码</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <div id="recaptchaContainer" class="form-group" style="display: none;">
+                    <div id="recaptchaElement" style="margin: 0 auto;"></div>
+                </div>
+                <div class="form-group">
+                    <button type="submit" class="login-btn">登录</button>
+                </div>
+                <div class="error-message" style="display: none;"></div>
+            </form>
+            <div class="back-link">
+                <a href="/">返回首页</a>
+            </div>
+        </div>
+    </div>
+    <script src="/js/admin/login.js"></script>
+</body>
+</html> 

@@ -1,0 +1,629 @@
+:root {
+    --primary-color: #4a90e2;
+    --secondary-color: #2c3e50;
+    --success-color: #2ecc71;
+    --error-color: #e74c3c;
+    --background-color: #f5f6fa;
+    --border-color: #dcdde1;
+    --text-color: #2c3e50;
+    --shadow-color: rgba(0, 0, 0, 0.1);
+    --gradient-start: #4a90e2;
+    --gradient-end: #357abd;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    color: #333;
+    background-color: #f5f5f5;
+}
+
+.container {
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 3rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+h1 {
+    font-size: 2.5rem;
+    color: var(--secondary-color);
+    margin: 0;
+    background: linear-gradient(45deg, var(--gradient-start), var(--gradient-end));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.admin-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background: linear-gradient(45deg, var(--gradient-start), var(--gradient-end));
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    transition: transform 0.3s, box-shadow 0.3s;
+}
+
+.admin-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(74, 144, 226, 0.2);
+}
+
+.upload-container {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.drop-zone {
+    border: 2px dashed #ccc;
+    border-radius: 8px;
+    padding: 2rem;
+    text-align: center;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.drop-zone.dragover {
+    border-color: #2196f3;
+    background-color: rgba(33, 150, 243, 0.1);
+}
+
+.drop-zone.disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    position: relative;
+    border-color: #ff6b6b;
+    background-color: #fff5f5;
+}
+
+.disabled-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    border-radius: 8px;
+    backdrop-filter: blur(2px);
+    pointer-events: all;
+}
+
+.disabled-message {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    padding: 20px 40px;
+    text-align: center;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    border: 1px solid #ff6b6b;
+    color: #ff3e3e;
+}
+
+.disabled-message i {
+    font-size: 40px;
+    margin-bottom: 10px;
+    color: #ff6b6b;
+}
+
+.disabled-message p {
+    margin: 5px 0;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.disabled-message .sub-message {
+    font-size: 14px;
+    color: #666;
+    font-weight: normal;
+}
+
+.warning-message {
+    background-color: #fff8e1;
+    color: #ff8800;
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin: 10px 0;
+    font-size: 14px;
+    border-left: 4px solid #ff8800;
+    display: flex;
+    align-items: center;
+}
+
+.warning-message i {
+    margin-right: 8px;
+    font-size: 16px;
+}
+
+.upload-btn.disabled {
+    background-color: #ccc;
+    border-color: #aaa;
+    color: #888;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.upload-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+.upload-icon {
+    font-size: 3rem;
+    color: #2196f3;
+    margin-bottom: 1rem;
+}
+
+.upload-btn {
+    background-color: #2196f3;
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+}
+
+.upload-btn:hover {
+    background-color: #1976d2;
+}
+
+.supported-formats, .file-size-limit {
+    color: #666;
+    font-size: 0.9rem;
+    margin-top: 0.5rem;
+}
+
+.upload-progress {
+    margin-top: 1rem;
+}
+
+.progress-bar {
+    height: 4px;
+    background-color: #e0e0e0;
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: #2196f3;
+    width: 0;
+    transition: width 0.3s ease;
+}
+
+.progress-info {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.result-container {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    padding: 1.5rem;
+}
+
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.result-header h3 {
+    color: #2196f3;
+    font-size: 1.2rem;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #666;
+    cursor: pointer;
+    padding: 0.5rem;
+}
+
+.preview-container {
+    text-align: center;
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background-color: #f5f5f5;
+    border-radius: 8px;
+}
+
+.preview-image {
+    max-width: 100%;
+    max-height: 400px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.link-group {
+    margin-bottom: 1rem;
+}
+
+.link-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.input-group {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.link-input {
+    flex: 1;
+    padding: 0.8rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    background-color: #f5f5f5;
+    min-height: 80px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    font-family: monospace;
+    resize: vertical;
+}
+
+.copy-btn {
+    background-color: #2196f3;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+}
+
+.copy-btn:hover {
+    background-color: #1976d2;
+}
+
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #ff3e3e;
+    color: white;
+    padding: 12px 25px;
+    padding-right: 30px;
+    border-radius: 5px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    display: none;
+    max-width: 80%;
+    word-wrap: break-word;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-left: 5px solid #d32f2f;
+    position: relative;
+}
+
+.toast.success {
+    background-color: #4CAF50;
+    border-left: 5px solid #388E3C;
+}
+
+.toast.error {
+    background-color: #ff3e3e;
+    border-left: 5px solid #d32f2f;
+}
+
+.toast.info {
+    background-color: #2196F3;
+    border-left: 5px solid #1976D2;
+}
+
+.toast.show {
+    display: block;
+    opacity: 1;
+}
+
+.toast-title {
+    font-weight: 600;
+    margin-bottom: 5px;
+    font-size: 15px;
+}
+
+.toast-details {
+    font-size: 13px;
+    opacity: 0.9;
+    margin-top: 5px;
+    padding-top: 5px;
+    border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* 确保移动端显示也良好 */
+@media (max-width: 768px) {
+    #toast {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        min-width: 0;
+    }
+
+    .container {
+        padding: 1rem;
+    }
+
+    .drop-zone {
+        padding: 1.5rem;
+    }
+
+    .upload-icon {
+        font-size: 2.5rem;
+    }
+
+    .result-container {
+        padding: 1rem;
+    }
+    
+    /* 页脚在移动端的样式 */
+    .site-footer p {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .footer-divider {
+        display: none; /* 隐藏分隔符 */
+    }
+}
+
+footer {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.result-content {
+    margin-top: 1rem;
+}
+
+.deploy-notice {
+    background-color: #e3f2fd;
+    border: 1px solid #90caf9;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.deploy-notice i {
+    color: #2196f3;
+    font-size: 1.2rem;
+}
+
+.deploy-notice p {
+    color: #1976d2;
+    font-size: 0.95rem;
+    margin: 0;
+    line-height: 1.4;
+}
+
+.file-info-container {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.file-info {
+    flex: 1;
+}
+
+.file-name {
+    font-weight: 500;
+    color: #2c3e50;
+    margin-bottom: 0.25rem;
+    word-wrap: break-word;
+    word-break: break-all;
+    overflow-wrap: break-word;
+    max-width: 100%;
+}
+
+.file-size {
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.start-upload-btn {
+    background-color: #2196f3;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: background-color 0.3s ease;
+    margin-left: 1rem;
+}
+
+.start-upload-btn:hover {
+    background-color: #1976d2;
+}
+
+.site-title {
+    text-align: center;
+    font-size: 2.5rem;
+    color: var(--secondary-color);
+    margin-bottom: 2rem;
+    background: linear-gradient(45deg, var(--gradient-start), var(--gradient-end));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.site-footer {
+    text-align: center;
+    margin-top: 2rem;
+    padding: 1rem;
+    color: #666;
+    font-size: 0.9rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.site-footer p {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.file-list {
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.confirm-upload-btn {
+    background-color: #2196f3;
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s ease;
+    margin-top: 1rem;
+    width: 100%;
+}
+
+.confirm-upload-btn:hover {
+    background-color: #1976d2;
+}
+
+/* 添加关闭按钮样式 */
+.notification-close {
+    position: absolute;
+    top: 5px;
+    right: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.8);
+    transition: color 0.2s;
+}
+
+.notification-close:hover {
+    color: white;
+}
+
+/* Toast 标题和详情样式 */
+.toast-title {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.toast-details {
+    font-size: 0.9em;
+    opacity: 0.9;
+}
+
+/* 为Toast添加图标间距 */
+.toast i {
+    margin-right: 8px;
+}
+
+/* 修正notification-close在toast中的定位 */
+.toast .notification-close {
+    position: absolute;
+    top: 5px;
+    right: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    color: rgba(255, 255, 255, 0.8);
+    transition: color 0.2s;
+}
+
+/* 确保禁用覆盖层完全覆盖上传区域 */
+.disabled-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+/* 修正toast样式，确保它在显示时更加明显 */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #ff3e3e;
+    color: white;
+    padding: 12px 25px;
+    padding-right: 30px; /* 为关闭按钮留出空间 */
+    border-radius: 5px;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    display: none;
+    max-width: 80%;
+    word-wrap: break-word;
+    text-align: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    border-left: 5px solid #d32f2f;
+    position: relative; /* 确保关闭按钮正确定位 */
+} 

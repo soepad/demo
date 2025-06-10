@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统设置 - 参界图片托管系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        .setting-card {
+            transition: all 0.3s;
+        }
+        
+        .setting-card:hover {
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .spinner-border-sm {
+            width: 1rem;
+            height: 1rem;
+            border-width: 0.2em;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="/admin/">图片托管系统</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/">控制台</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/images.html">图片管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/admin/repositories.html">仓库管理</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="/admin/settings.html">系统设置</a>
+                    </li>
+                </ul>
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/" target="_blank">访问前台</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="logoutBtn">退出登录</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>系统设置</h1>
+        </div>
+        
+        <div class="row">
+            <div class="col-md-6 mb-4">
+                <div class="card setting-card">
+                    <div class="card-header">
+                        <h5 class="mb-0">基本设置</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="basicSettingsForm">
+                            <div class="mb-3">
+                                <label for="siteName" class="form-label">站点名称</label>
+                                <input type="text" class="form-control" id="siteName" name="site_name">
+                            </div>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="allowGuestUpload" name="allow_guest_upload">
+                                <label class="form-check-label" for="allowGuestUpload">允许游客上传</label>
+                            </div>
+                            <button type="submit" class="btn btn-primary">保存设置</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 mb-4">
+                <div class="card setting-card">
+                    <div class="card-header">
+                        <h5 class="mb-0">仓库设置</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="repositorySettingsForm">
+                            <div class="mb-3">
+                                <label for="repositorySizeThreshold" class="form-label">仓库大小阈值 (MB)</label>
+                                <input type="number" class="form-control" id="repositorySizeThreshold" name="repository_size_threshold" min="100" max="1000" step="1">
+                                <div class="form-text">设置仓库大小阈值，达到此阈值后将自动切换到新仓库。建议不超过900MB，最大不能超过1GB。</div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="repositoryNameTemplate" class="form-label">仓库命名规则</label>
+                                <input type="text" class="form-control" id="repositoryNameTemplate" name="repository_name_template" placeholder="例如: images-repo">
+                                <div class="form-text">设置新建仓库的基础名称，系统将自动添加序号，如 images-repo-1。如不设置，将基于当前仓库名称生成。</div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">保存设置</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 mb-4">
+                <div class="card setting-card">
+                    <div class="card-header">
+                        <h5 class="mb-0">上传设置</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="uploadSettingsForm">
+                            <div class="mb-3">
+                                <label for="maxFileSize" class="form-label">最大文件大小 (MB)</label>
+                                <input type="number" class="form-control" id="maxFileSize" name="max_file_size" min="1" max="25" step="1">
+                            </div>
+                            <div class="mb-3">
+                                <label for="allowedTypes" class="form-label">允许的文件类型</label>
+                                <input type="text" class="form-control" id="allowedTypes" name="allowed_types">
+                                <div class="form-text">使用逗号分隔的MIME类型，例如：image/jpeg,image/png,image/gif</div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">保存设置</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6 mb-4">
+                <div class="card setting-card">
+                    <div class="card-header">
+                        <h5 class="mb-0">图像处理设置</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="imageProcessingSettingsForm">
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="enableCompression" name="enable_compression">
+                                <label class="form-check-label" for="enableCompression">启用图像压缩</label>
+                            </div>
+                            <div class="mb-3">
+                                <label for="compressionQuality" class="form-label">压缩质量 (1-100)</label>
+                                <input type="number" class="form-control" id="compressionQuality" name="compression_quality" min="1" max="100" step="1">
+                            </div>
+                            <button type="submit" class="btn btn-primary">保存设置</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // 检查登录状态
+        function checkLoginStatus() {
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'session_id' && value) {
+                    return true;
+                }
+            }
+            window.location.href = '/admin/login.html';
+            return false;
+        }
+        
+        // 加载设置
+        async function loadSettings() {
+            try {
+                const response = await fetch('/api/settings');
+                if (!response.ok) {
+                    throw new Error('Failed to fetch settings');
+                }
+                
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || 'Unknown error');
+                }
+                
+                const settings = data.data;
+                
+                // 填充基本设置
+                document.getElementById('siteName').value = settings.site_name || '';
+                document.getElementById('allowGuestUpload').checked = settings.allow_guest_upload === 'true';
+                
+                // 填充仓库设置
+                const repositorySizeThresholdMB = Math.round(parseInt(settings.repository_size_threshold || '943718400') / (1024 * 1024));
+                document.getElementById('repositorySizeThreshold').value = repositorySizeThresholdMB;
+                document.getElementById('repositoryNameTemplate').value = settings.repository_name_template || '';
+                
+                // 填充上传设置
+                const maxFileSizeMB = Math.round(parseInt(settings.max_file_size || '10485760') / (1024 * 1024));
+                document.getElementById('maxFileSize').value = maxFileSizeMB;
+                document.getElementById('allowedTypes').value = settings.allowed_types || 'image/jpeg,image/png,image/gif,image/webp';
+                
+                // 填充图像处理设置
+                document.getElementById('enableCompression').checked = settings.enable_compression === 'true';
+                document.getElementById('compressionQuality').value = settings.compression_quality || '80';
+                
+            } catch (error) {
+                console.error('Error loading settings:', error);
+                alert(`加载设置失败: ${error.message}`);
+            }
+        }
+        
+        // 保存设置
+        async function saveSettings(formId, settings) {
+            try {
+                const button = document.querySelector(`#${formId} button[type="submit"]`);
+                const originalText = button.innerHTML;
+                
+                // 显示加载状态
+                button.disabled = true;
+                button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 保存中...`;
+                
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(settings)
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Unknown error');
+                }
+                
+                alert('设置已保存');
+                
+                // 恢复按钮状态
+                button.disabled = false;
+                button.innerHTML = originalText;
+                
+                return true;
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                alert(`保存设置失败: ${error.message}`);
+                return false;
+            }
+        }
+        
+        // 退出登录
+        function logout() {
+            document.cookie = 'session_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+            window.location.href = '/admin/login.html';
+        }
+        
+        // 页面加载完成后执行
+        document.addEventListener('DOMContentLoaded', () => {
+            // 检查登录状态
+            if (!checkLoginStatus()) {
+                return;
+            }
+            
+            // 加载设置
+            loadSettings();
+            
+            // 基本设置表单提交
+            document.getElementById('basicSettingsForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const formData = new FormData(e.target);
+                const settings = {
+                    site_name: formData.get('site_name'),
+                    allow_guest_upload: formData.get('allow_guest_upload') ? 'true' : 'false'
+                };
+                
+                await saveSettings('basicSettingsForm', settings);
+            });
+            
+            // 仓库设置表单提交
+            document.getElementById('repositorySettingsForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const formData = new FormData(e.target);
+                const thresholdMB = parseInt(formData.get('repository_size_threshold'));
+                const nameTemplate = formData.get('repository_name_template');
+                
+                // 验证阈值
+                if (thresholdMB > 1000) {
+                    alert('仓库大小阈值不能超过1GB');
+                    return;
+                }
+                
+                if (thresholdMB > 900) {
+                    const confirm = window.confirm('不建议将仓库大小阈值设置超过900MB，这可能导致GitHub仓库被警告。是否继续？');
+                    if (!confirm) {
+                        return;
+                    }
+                }
+                
+                const settings = {
+                    repository_size_threshold: (thresholdMB * 1024 * 1024).toString(),
+                    repository_name_template: nameTemplate
+                };
+                
+                await saveSettings('repositorySettingsForm', settings);
+            });
+            
+            // 上传设置表单提交
+            document.getElementById('uploadSettingsForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const formData = new FormData(e.target);
+                const maxFileSizeMB = parseInt(formData.get('max_file_size'));
+                
+                const settings = {
+                    max_file_size: (maxFileSizeMB * 1024 * 1024).toString(),
+                    allowed_types: formData.get('allowed_types')
+                };
+                
+                await saveSettings('uploadSettingsForm', settings);
+            });
+            
+            // 图像处理设置表单提交
+            document.getElementById('imageProcessingSettingsForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const formData = new FormData(e.target);
+                const settings = {
+                    enable_compression: formData.get('enable_compression') ? 'true' : 'false',
+                    compression_quality: formData.get('compression_quality')
+                };
+                
+                await saveSettings('imageProcessingSettingsForm', settings);
+            });
+            
+            // 退出登录
+            document.getElementById('logoutBtn').addEventListener('click', (e) => {
+                e.preventDefault();
+                logout();
+            });
+        });
+    </script>
+</body>
+</html> 

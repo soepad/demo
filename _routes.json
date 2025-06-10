@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "include": [
+    "/*"
+  ],
+  "exclude": [
+    "/images/*"
+  ],
+  "routes": [
+    {
+      "pattern": "/api/upload*",
+      "script": "functions/api/upload.js"
+    },
+    {
+      "pattern": "/api/deploy-trigger",
+      "script": "functions/api/deploy-trigger.js"
+    },
+    {
+      "pattern": "/api/*",
+      "script": "functions/api/[[path]].js"
+    },
+    {
+      "pattern": "/admin/*",
+      "script": "functions/admin/[[path]].js"
+    },
+    {
+      "pattern": "/*",
+      "script": "functions/[[path]].js"
+    }
+  ]
+} 

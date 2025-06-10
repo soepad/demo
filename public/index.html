@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>参界图床</title>
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <center><h1 class="site-title">参界图床</h1></center>
+        <div class="upload-container">
+            <div id="dropZone" class="drop-zone">
+                <div class="upload-content">
+                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                    <h2>拖放文件到这里</h2>
+                    <p>或者</p>
+                    <button id="uploadBtn" class="upload-btn">选择文件</button>
+                    <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
+                    <p class="supported-formats">支持的文件类型：JPG、PNG、GIF、WebP、SVG、ICO</p>
+                    <p class="file-size-limit">最大文件大小：25MB</p>
+                </div>
+            </div>
+            <div class="upload-progress" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+                <div class="progress-info">
+                    <span class="progress-text">0%</span>
+                    <span class="progress-speed">0 B/s</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="result-container" style="display: none;">
+            <div class="result-header">
+                <h3>上传成功</h3>
+                <button id="closeResult" class="close-btn">&times;</button>
+            </div>
+            <div class="result-content">
+                <div class="deploy-notice">
+                    <i class="fas fa-info-circle"></i>
+                    <p>因CloudFlare Pages部署需要时间，请您耐心等待1-2分钟，待Pages部署完毕，图片即可显示。</p>
+                </div>
+                <div class="link-group">
+                    <div class="link-item">
+                        <label>直接链接</label>
+                        <div class="input-group">
+                            <textarea class="link-input" readonly></textarea>
+                            <button class="copy-btn" data-type="url">复制</button>
+                        </div>
+                    </div>
+                    <div class="link-item">
+                        <label>Markdown</label>
+                        <div class="input-group">
+                        <textarea class="link-input" readonly></textarea>
+                        <button class="copy-btn" data-type="markdown">复制</button>
+                        </div>
+                    </div>
+                    <div class="link-item">
+                        <label>HTML</label>
+                        <div class="input-group">
+                        <textarea class="link-input" readonly></textarea>
+                        <button class="copy-btn" data-type="html">复制</button>
+                        </div>
+                    </div>
+                    <div class="link-item">
+                        <label>BBCode</label>
+                        <div class="input-group">
+                        <textarea class="link-input" readonly></textarea>
+                        <button class="copy-btn" data-type="bbcode">复制</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <footer class="site-footer">
+            <p><span class="footer-copyright">© 2025 参界图床</span> <span class="footer-divider">|</span> <span class="footer-powered-by">基于 CloudFlare Pages 和 GitHub</span></p>
+        </footer>
+    </div>
+    <div id="toast" class="toast"></div>
+    <script src="/js/chunked-uploader.js"></script>
+    <script src="/js/main.js"></script>
+</body>
+</html> 

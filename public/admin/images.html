@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片管理 - 图床管理系统</title>
+    <link rel="stylesheet" href="/css/admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="admin-container">
+        <header class="admin-header">
+            <h1>图片管理</h1>
+            <nav class="admin-nav">
+                <a href="/admin/dashboard.html">仪表盘</a>
+                <a href="/admin/images.html" class="active">图片管理</a>
+                <a href="/admin/settings.html">系统设置</a>
+                <a href="/admin/stats.html">访问统计</a>
+                <a href="#" id="logout">退出登录</a>
+            </nav>
+        </header>
+
+        <main class="admin-main">
+            <div class="toolbar">
+                <div class="search-box">
+                    <input type="text" id="search" placeholder="搜索图片...">
+                    <button id="searchBtn"><i class="fas fa-search"></i></button>
+                </div>
+                <div class="filter-box">
+                    <select id="categoryFilter">
+                        <option value="">所有分类</option>
+                    </select>
+                    <select id="tagFilter">
+                        <option value="">所有标签</option>
+                    </select>
+                    <select id="sortFilter">
+                        <option value="newest">最新上传</option>
+                        <option value="oldest">最早上传</option>
+                        <option value="most_views">最多访问</option>
+                        <option value="least_views">最少访问</option>
+                    </select>
+                </div>
+                <div class="action-box">
+                    <button id="batchUpdateBtn" class="btn" disabled>批量更新分类</button>
+                    <button id="batchDeleteBtn" class="btn btn-danger" disabled>批量删除</button>
+                </div>
+            </div>
+
+            <div class="image-grid" id="imageGrid">
+                <!-- 图片列表将通过 JavaScript 动态加载 -->
+            </div>
+
+            <div class="pagination" id="pagination">
+                <!-- 分页控件将通过 JavaScript 动态加载 -->
+            </div>
+        </main>
+
+        <!-- 图片预览模态框 -->
+        <div class="modal" id="previewModal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <div class="preview-container">
+                    <img id="previewImage" src="" alt="预览图">
+                    <div class="preview-info">
+                        <h3>图片信息</h3>
+                        <p><strong>文件名：</strong><span id="previewFilename"></span></p>
+                        <p><strong>上传时间：</strong><span id="previewUploadTime"></span></p>
+                        <p><strong>访问次数：</strong><span id="previewViews"></span></p>
+                        <p><strong>文件大小：</strong><span id="previewSize"></span></p>
+                        <p><strong>分类：</strong>
+                            <select id="previewCategory">
+                                <option value="">选择分类</option>
+                            </select>
+                        </p>
+                        <p><strong>标签：</strong>
+                            <input type="text" id="previewTags" placeholder="输入标签，用逗号分隔">
+                        </p>
+                        <div class="preview-links">
+                            <h4>链接格式</h4>
+                            <div class="link-item">
+                                <span>URL：</span>
+                                <input type="text" id="previewUrl" readonly>
+                                <button class="copy-btn" data-target="previewUrl">复制</button>
+                            </div>
+                            <div class="link-item">
+                                <span>Markdown：</span>
+                                <input type="text" id="previewMarkdown" readonly>
+                                <button class="copy-btn" data-target="previewMarkdown">复制</button>
+                            </div>
+                            <div class="link-item">
+                                <span>HTML：</span>
+                                <input type="text" id="previewHtml" readonly>
+                                <button class="copy-btn" data-target="previewHtml">复制</button>
+                            </div>
+                            <div class="link-item">
+                                <span>BBCode：</span>
+                                <input type="text" id="previewBbcode" readonly>
+                                <button class="copy-btn" data-target="previewBbcode">复制</button>
+                            </div>
+                        </div>
+                        <div class="preview-actions">
+                            <button id="saveChanges" class="btn btn-primary">保存更改</button>
+                            <button id="deleteImage" class="btn btn-danger">删除图片</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 批量更新分类模态框 -->
+        <div class="modal" id="batchUpdateModal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>批量更新分类</h2>
+                <div class="form-group">
+                    <label for="batchCategory">选择分类：</label>
+                    <select id="batchCategory">
+                        <option value="">选择分类</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button id="confirmBatchUpdate" class="btn btn-primary">确认更新</button>
+                    <button class="btn" id="cancelBatchUpdate">取消</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 批量删除确认模态框 -->
+        <div class="modal" id="batchDeleteModal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>确认删除</h2>
+                <p>确定要删除选中的图片吗？此操作不可恢复。</p>
+                <div class="modal-actions">
+                    <button id="confirmBatchDelete" class="btn btn-danger">确认删除</button>
+                    <button class="btn" id="cancelBatchDelete">取消</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/admin/images.js"></script>
+</body>
+</html> 

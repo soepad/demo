@@ -1,0 +1,21 @@
+{
+  "name": "github-to-pages",
+  "version": "1.0.0",
+  "description": "A simple image hosting system using GitHub and CloudFlare Pages",
+  "main": "functions/[[path]].js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "deploy": "wrangler deploy",
+    "build": "echo 'No build step needed - using directory structure as is'"
+  },
+  "dependencies": {
+    "hono": "^4.0.5",
+    "octokit": "^3.1.2",
+    "bcryptjs": "^2.4.3",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "wrangler": "^3.28.1"
+  }
+} 

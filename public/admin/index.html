@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=0.6, maximum-scale=1.0, user-scalable=yes">
+    <title>参界图床管理后台 - CloudFlare Pages图床管理系统</title>
+    <link rel="stylesheet" href="/css/admin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* 移动端优化样式 */
+        @media (max-width: 768px) {
+            html {
+                font-size: 14px; /* 减小基础字体大小 */
+            }
+            
+            .admin-container {
+                min-height: unset;
+            }
+            
+            .stat-card {
+                padding: 12px;
+            }
+            
+            .stat-icon {
+                width: 40px;
+                height: 40px;
+            }
+            
+            /* 增强在小缩放比例下的可用性 */
+            button, 
+            .btn, 
+            input[type="submit"],
+            select {
+                min-height: 36px; /* 确保足够的触摸区域 */
+                font-size: 16px; /* 增大字体以提高可读性 */
+            }
+            
+            /* 增强表单元素可见性 */
+            input[type="text"],
+            input[type="password"] {
+                font-size: 16px;
+                padding: 8px 10px;
+                height: 40px;
+            }
+            
+            /* 确保在小缩放比例下内容可见 */
+            .image-grid {
+                gap: 10px; /* 增加网格间距以避免元素重叠 */
+            }
+            
+            /* 增强触摸区域 */
+            .nav-menu li a {
+                padding: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="admin-container">
+        <nav class="admin-nav">
+            <div class="nav-header">
+                <div class="logo">
+                    <a href="/" title="返回首页" class="logo-link">
+                        <i class="fas fa-cloud-upload-alt"></i>
+                        <h1>参界图床管理系统</h1>
+                    </a>
+                </div>
+            </div>
+            <ul class="nav-menu">
+                <li class="active" data-page="dashboard">
+                    <a href="#dashboard">
+                        <i class="fas fa-chart-line"></i>
+                        <span>控制面板</span>
+                    </a>
+                </li>
+                <li data-page="images">
+                    <a href="#images">
+                        <i class="fas fa-images"></i>
+                        <span>图片管理</span>
+                    </a>
+                </li>
+                <li data-page="settings">
+                    <a href="#settings">
+                        <i class="fas fa-cog"></i>
+                        <span>系统设置</span>
+                    </a>
+                </li>
+            </ul>
+            <div class="nav-footer">
+                <button id="logoutBtn" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>退出登录</span>
+                </button>
+            </div>
+        </nav>
+
+        <main class="admin-main">
+            <header class="main-header">
+                <div class="header-left">
+                    <h2 id="pageTitle">控制面板</h2>
+                </div>
+                <div class="header-right">
+                    <div class="user-info">
+                        <i class="fas fa-user-circle"></i>
+                        <span id="username">管理员</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="main-content">
+                <!-- 控制面板 -->
+                <section id="dashboard" class="page active">
+                    <div class="dashboard-stats">
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-image"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>总图片数</h3>
+                                <p class="stat-number" id="totalImages">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-upload"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>今日上传</h3>
+                                <p class="stat-number" id="todayUploads">0</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">
+                                <i class="fas fa-hdd"></i>
+                            </div>
+                            <div class="stat-info">
+                                <h3>图片总计</h3>
+                                <p class="stat-number" id="totalSize">0 MB</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- 图片管理 -->
+                <section id="images" class="page">
+                    <div class="toolbar">
+                        <div class="search-box">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="searchInput" placeholder="搜索图片...">
+                        </div>
+                        <div class="filter-box">
+                            <select id="sortSelect">
+                                <option value="newest">最新上传</option>
+                                <option value="oldest">最早上传</option>
+                                <option value="name_asc">名称升序</option>
+                                <option value="name_desc">名称降序</option>
+                            </select>
+                        </div>
+                        <div class="action-box">
+                            <button class="btn btn-primary" id="uploadBtn">
+                                <i class="fas fa-upload"></i>
+                                上传图片
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="image-grid" id="imageGrid">
+                        <!-- 图片列表将通过 JavaScript 动态加载 -->
+                    </div>
+
+                    <div class="pagination" id="pagination">
+                        <!-- 分页控件将通过 JavaScript 动态加载 -->
+                    </div>
+                </section>
+
+                <!-- 系统设置 -->
+                <section id="settings" class="page">
+                    <div class="settings-card">
+                        <h3>基本设置</h3>
+                        <form id="settingsForm" class="settings-form">
+                            <div class="form-group">
+                                <label class="switch-label">
+                                    <span>允许游客上传</span>
+                                    <label class="switch">
+                                        <input type="checkbox" id="allowGuestUpload" name="allow_guest_upload">
+                                        <span class="slider"></span>
+                                    </label>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i>
+                                    保存设置
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="settings-card" style="margin-top: 20px;">
+                        <h3>修改密码</h3>
+                        <form id="passwordForm" class="settings-form">
+                            <div class="form-group">
+                                <label for="currentPassword">当前密码</label>
+                                <input type="password" id="currentPassword" name="currentPassword" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="newPassword">新密码</label>
+                                <input type="password" id="newPassword" name="newPassword" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="confirmPassword">确认新密码</label>
+                                <input type="password" id="confirmPassword" name="confirmPassword" class="form-control" required>
+                            </div>
+                            <div class="form-group">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-key"></i>
+                                    修改密码
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- 上传模态框 -->
+    <div class="modal" id="uploadModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>上传图片</h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="upload-area" id="uploadArea">
+                    <i class="fas fa-cloud-upload-alt"></i>
+                    <p>拖放文件到这里或点击选择文件</p>
+                    <small>允许的文件类型: JPEG, PNG, GIF, WebP, SVG, ICO</small>
+                    <input type="file" id="fileInput" multiple accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.ico" style="display: none;">
+                </div>
+                <div class="upload-progress" style="display: none;">
+                    <div class="progress-bar">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-info">
+                        <span class="progress-text">0%</span>
+                        <span class="progress-speed">0 KB/s</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/js/admin/main.js"></script>
+</body>
+</html> 
