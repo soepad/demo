@@ -69,10 +69,7 @@
                     </div>
                     <div class="card-body">
                         <form id="basicSettingsForm">
-                            <div class="mb-3">
-                                <label for="siteName" class="form-label">站点名称</label>
-                                <input type="text" class="form-control" id="siteName" name="site_name">
-                            </div>
+                           
                             <div class="mb-3 form-check">
                                 <input type="checkbox" class="form-check-input" id="allowGuestUpload" name="allow_guest_upload">
                                 <label class="form-check-label" for="allowGuestUpload">允许游客上传</label>
@@ -106,27 +103,7 @@
                 </div>
             </div>
             
-            <div class="col-md-6 mb-4">
-                <div class="card setting-card">
-                    <div class="card-header">
-                        <h5 class="mb-0">上传设置</h5>
-                    </div>
-                    <div class="card-body">
-                        <form id="uploadSettingsForm">
-                            <div class="mb-3">
-                                <label for="maxFileSize" class="form-label">最大文件大小 (MB)</label>
-                                <input type="number" class="form-control" id="maxFileSize" name="max_file_size" min="1" max="25" step="1">
-                            </div>
-                            <div class="mb-3">
-                                <label for="allowedTypes" class="form-label">允许的文件类型</label>
-                                <input type="text" class="form-control" id="allowedTypes" name="allowed_types">
-                                <div class="form-text">使用逗号分隔的MIME类型，例如：image/jpeg,image/png,image/gif</div>
-                            </div>
-                            <button type="submit" class="btn btn-primary">保存设置</button>
-                        </form>
-                    </div>
-                </div>
-            </div>
+           
             
             <div class="col-md-6 mb-4">
                 <div class="card setting-card">
@@ -193,7 +170,7 @@
                 // 填充上传设置
                 const maxFileSizeMB = Math.round(parseInt(settings.max_file_size || '10485760') / (1024 * 1024));
                 document.getElementById('maxFileSize').value = maxFileSizeMB;
-                document.getElementById('allowedTypes').value = settings.allowed_types || 'image/jpeg,image/png,image/gif,image/webp';
+                document.getElementById('allowedTypes').value = settings.allowed_types || 'image/jpeg,image/png,image/gif';
                 
                 // 填充图像处理设置
                 document.getElementById('enableCompression').checked = settings.enable_compression === 'true';
