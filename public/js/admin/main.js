@@ -426,8 +426,12 @@ function initSettings() {
         settingsForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
+            // 安全获取siteName值，如果元素不存在则使用空字符串
+            const siteNameElement = document.getElementById('siteName');
+            const siteName = siteNameElement ? siteNameElement.value : '';
+            
             const settings = {
-                site_name: document.getElementById('siteName').value,
+                site_name: siteName,
                 allow_guest_upload: document.getElementById('allowGuestUpload').checked ? 'true' : 'false'
             };
             
@@ -1060,11 +1064,27 @@ function initRepositoryManagement() {
             const repoNameInput = document.getElementById('newRepoName');
             const baseName = repoNameInput ? repoNameInput.value.trim() : 'images-repo';
             
-            // 决定使用哪个API端点
-            let endpoint = useSimpleMode ? '/api/repositories/create-simple' : '/api/repositories/create';
-            let requestBody = useSimpleMode ? 
-                { repoName: `${baseName}-${Date.now()}` } : 
-                { baseName, useSimpleMode };
+            // 确保baseName不为空
+            if (!baseName || baseName.trim() === '') {
+                baseName = 'images-repo';
+            }
+            
+                          // 使用正确的API端点
+              let endpoint = '/api/repositories';
+              
+              // 确保baseName不为空
+              if (!baseName || baseName.trim() === '') {
+                  baseName = 'images-repo';
+              }
+              
+              let requestBody = useSimpleMode ? 
+                  { repoName: `${baseName}-${Date.now()}` } : 
+                  { baseName, useSimpleMode };
+              
+              // 确保repoName不为空
+              if (useSimpleMode && (!requestBody.repoName || requestBody.repoName.startsWith('-'))) {
+                  requestBody.repoName = 'images-repo-' + Date.now();
+              }
             
             console.log(`使用${useSimpleMode ? '简化' : '标准'}模式创建仓库:`, requestBody);
             
