@@ -212,7 +212,7 @@ export async function onRequest(context) {
   }
   
   // 创建新仓库
-  if (path === '/create' && request.method === 'POST') {
+  if ((path === '/create' || path === '') && request.method === 'POST') {
     try {
       const data = await request.json();
       const { baseName } = data;
@@ -390,6 +390,60 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({
         success: false,
         error: '同步所有仓库大小失败: ' + error.message
+      }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      });
+    }
+  }
+  
+  // 激活仓库
+  if (path.match(/^\/\d+\/activate$/) && request.method === 'POST') {
+    try {
+      const repoId = parseInt(path.replace('/activate', '').substring(1));
+      
+      if (!repoId || isNaN(repoId)) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: '无效的仓库ID'
+        }), {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+      
+      // 先将所有仓库设置为非活跃
+      await env.DB.prepare(`
+        UPDATE repositories SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
+        WHERE status = 'active'
+      `).run();
+      
+      // 将指定仓库设置为活跃
+      await env.DB.prepare(`
+        UPDATE repositories SET status = 'active', updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).bind(repoId).run();
+      
+      return new Response(JSON.stringify({
+        success: true,
+        message: '仓库已设置为活跃状态'
+      }), {
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      });
+    } catch (error) {
+      console.error('激活仓库失败:', error);
+      return new Response(JSON.stringify({
+        success: false,
+        error: '激活仓库失败: ' + error.message
       }), {
         status: 500,
         headers: {
