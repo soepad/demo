@@ -1444,18 +1444,47 @@ export async function onRequest(context) {
               auth: env.GITHUB_TOKEN
             });
 
-            const githubResponse = await octokit.rest.repos.deleteFile({
-              owner: env.GITHUB_OWNER,
-              repo: env.GITHUB_REPO,
-              path: image.github_path,
-              message: `Delete ${image.filename}`,
-              sha: image.sha,
-              branch: 'main'
-            });
+            try {
+              // 尝试删除GitHub上的文件
+              const githubResponse = await octokit.rest.repos.deleteFile({
+                owner: env.GITHUB_OWNER,
+                repo: env.GITHUB_REPO,
+                path: image.github_path,
+                message: `Delete ${image.filename}`,
+                sha: image.sha,
+                branch: 'main'
+              });
 
-            console.log('从GitHub删除图片成功:', githubResponse);
+              console.log('从GitHub删除图片成功:', githubResponse);
+            } catch (githubError) {
+              console.error('从GitHub删除图片失败:', githubError);
+              
+              // 检查是否是"文件不存在"错误
+              const isNotFoundError = 
+                githubError.message.includes('Not Found') || 
+                (githubError.status === 404) ||
+                (githubError.response && githubError.response.status === 404);
+                
+              if (!isNotFoundError) {
+                // 如果不是"文件不存在"错误，返回失败
+                return new Response(JSON.stringify({ 
+                  success: false, 
+                  error: '从GitHub删除图片失败', 
+                  details: githubError.message 
+                }), {
+                  status: 500,
+                  headers: {
+                    'Content-Type': 'application/json',
+                    ...corsHeaders
+                  }
+                });
+              }
+              
+              // 如果是"文件不存在"错误，记录日志但继续处理
+              console.log('GitHub上文件已不存在，继续删除数据库记录');
+            }
             
-            // GitHub删除成功后，再从数据库删除记录
+            // GitHub删除成功或文件不存在时，从数据库删除记录
             await env.DB.prepare('DELETE FROM images WHERE id = ?').bind(imageId).run();
             console.log('从数据库删除图片成功');
 
@@ -1475,13 +1504,12 @@ export async function onRequest(context) {
                 ...corsHeaders
               }
             });
-          } catch (githubError) {
-            console.error('从GitHub删除图片失败:', githubError);
-            // GitHub删除失败时，不删除数据库记录，返回错误
+          } catch (error) {
+            console.error('删除操作失败:', error);
             return new Response(JSON.stringify({ 
               success: false, 
-              error: '从GitHub删除图片失败', 
-              details: githubError.message 
+              error: '删除操作失败', 
+              details: error.message 
             }), {
               status: 500,
               headers: {
@@ -1618,33 +1646,53 @@ export async function onRequest(context) {
         // 批量删除GitHub上的文件，只有成功后才删除数据库记录
         for (const image of images) {
           try {
-            console.log(`正在从GitHub删除图片: ${image.filename}, path: ${image.github_path}, sha: ${image.sha}`);
+            console.log(`正在处理图片: ${image.filename}, path: ${image.github_path}, sha: ${image.sha}`);
             
-            // 先从GitHub仓库删除文件
-            const githubResponse = await octokit.rest.repos.deleteFile({
-              owner: env.GITHUB_OWNER,
-              repo: env.GITHUB_REPO,
-              path: image.github_path,
-              message: `Delete ${image.filename}`,
-              sha: image.sha,
-              branch: 'main'
-            });
+            let githubDeleteSuccess = false;
             
-            console.log(`从GitHub删除图片成功: ${image.filename}`);
+            // 先尝试从GitHub仓库删除文件
+            try {
+              await octokit.rest.repos.deleteFile({
+                owner: env.GITHUB_OWNER,
+                repo: env.GITHUB_REPO,
+                path: image.github_path,
+                message: `Delete ${image.filename}`,
+                sha: image.sha,
+                branch: 'main'
+              });
+              
+              console.log(`从GitHub删除图片成功: ${image.filename}`);
+              githubDeleteSuccess = true;
+            } catch (githubError) {
+              // 检查是否是"文件不存在"错误
+              const isNotFoundError = 
+                githubError.message.includes('Not Found') || 
+                (githubError.status === 404) ||
+                (githubError.response && githubError.response.status === 404);
+                
+              if (isNotFoundError) {
+                console.log(`GitHub上文件 ${image.filename} 已不存在，继续处理`);
+                githubDeleteSuccess = true; // 视为删除成功
+              } else {
+                throw githubError; // 重新抛出其他类型的错误
+              }
+            }
             
-            // 只有GitHub删除成功后，才从数据库删除记录
-            await env.DB.prepare(`
-              DELETE FROM images 
-              WHERE id = ?
-            `).bind(image.id).run();
-            
-            results.success.push(image.id);
-            console.log(`成功删除图片(GitHub和数据库): ${image.filename}`);
+            if (githubDeleteSuccess) {
+              // 从数据库删除记录
+              await env.DB.prepare(`
+                DELETE FROM images 
+                WHERE id = ?
+              `).bind(image.id).run();
+              
+              results.success.push(image.id);
+              console.log(`成功删除图片(GitHub和数据库): ${image.filename}`);
+            }
           } catch (error) {
-            console.error(`从GitHub删除图片 ${image.id} 失败:`, error);
+            console.error(`删除图片 ${image.id} 失败:`, error);
             results.failed.push({
               id: image.id,
-              error: error.message || '从GitHub删除失败'
+              error: error.message || '删除失败'
             });
           }
         }
