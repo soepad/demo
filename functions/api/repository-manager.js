@@ -93,14 +93,32 @@ export async function getActiveRepository(env) {
  */
 export async function createNewRepository(env, currentRepoName) {
   try {
+    console.log('开始创建新仓库，参数:', { currentRepoName, githubToken: env.GITHUB_TOKEN ? '已设置' : '未设置', githubOwner: env.GITHUB_OWNER });
+    
+    // 检查必要的环境变量
+    if (!env.GITHUB_TOKEN) {
+      throw new Error('缺少GitHub令牌(GITHUB_TOKEN)环境变量');
+    }
+    
+    if (!env.GITHUB_OWNER) {
+      throw new Error('缺少GitHub所有者(GITHUB_OWNER)环境变量');
+    }
+    
     const octokit = new Octokit({
       auth: env.GITHUB_TOKEN
     });
     
     // 获取命名规则设置
-    const nameTemplateSetting = await env.DB.prepare(`
-      SELECT value FROM settings WHERE key = 'repository_name_template'
-    `).first();
+    let nameTemplateSetting;
+    try {
+      nameTemplateSetting = await env.DB.prepare(`
+        SELECT value FROM settings WHERE key = 'repository_name_template'
+      `).first();
+      console.log('获取仓库命名规则设置:', nameTemplateSetting);
+    } catch (dbError) {
+      console.error('获取仓库命名规则设置失败:', dbError);
+      // 继续使用默认值
+    }
     
     // 决定基础仓库名称
     let baseRepoName;
@@ -109,8 +127,8 @@ export async function createNewRepository(env, currentRepoName) {
       baseRepoName = nameTemplateSetting.value.trim();
       console.log(`使用设置的命名规则: ${baseRepoName}`);
     } else {
-      // 使用当前仓库名称作为基础
-      baseRepoName = currentRepoName.replace(/-\d+$/, '');
+      // 使用当前仓库名称作为基础，如果没有提供则使用默认值
+      baseRepoName = currentRepoName ? currentRepoName.replace(/-\d+$/, '') : 'images-repo';
       console.log(`使用默认命名规则，基于当前仓库: ${baseRepoName}`);
     }
     
@@ -179,17 +197,72 @@ export async function createNewRepository(env, currentRepoName) {
     }
     
     // 保存到数据库
-    const result = await env.DB.prepare(`
-      INSERT INTO repositories (name, owner, status, created_at, updated_at, priority)
-      VALUES (?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 
-        (SELECT COALESCE(MIN(priority), 0) - 1 FROM repositories))
-      RETURNING id
-    `).bind(newRepoName, env.GITHUB_OWNER).first();
+    let result;
+    try {
+      console.log('保存仓库到数据库:', { name: newRepoName, owner: env.GITHUB_OWNER });
+      
+      // 检查repositories表是否存在
+      const tableExists = await env.DB.prepare(`
+        SELECT name FROM sqlite_master WHERE type='table' AND name='repositories'
+      `).first();
+      
+      if (!tableExists) {
+        console.error('repositories表不存在，尝试创建');
+        
+        // 创建repositories表
+        await env.DB.exec(`
+          CREATE TABLE IF NOT EXISTS repositories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            owner TEXT NOT NULL,
+            token TEXT,
+            deploy_hook TEXT,
+            status TEXT DEFAULT 'inactive',
+            size_estimate INTEGER DEFAULT 0,
+            file_count INTEGER DEFAULT 0,
+            priority INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          )
+        `);
+        
+        console.log('repositories表创建成功');
+      }
+      
+      // 插入记录
+      result = await env.DB.prepare(`
+        INSERT INTO repositories (name, owner, status, created_at, updated_at, priority)
+        VALUES (?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 
+          (SELECT COALESCE(MIN(priority), 0) - 1 FROM repositories))
+        RETURNING id
+      `).bind(newRepoName, env.GITHUB_OWNER).first();
+      
+      console.log('仓库保存成功:', result);
+    } catch (dbError) {
+      console.error('保存仓库到数据库失败:', dbError);
+      throw new Error(`保存仓库到数据库失败: ${dbError.message}`);
+    }
+    
+    if (!result || !result.id) {
+      throw new Error('保存仓库成功但未返回ID');
+    }
     
     // 查询新创建的仓库记录
-    const newRepo = await env.DB.prepare(`
-      SELECT * FROM repositories WHERE id = ?
-    `).bind(result.id).first();
+    let newRepo;
+    try {
+      newRepo = await env.DB.prepare(`
+        SELECT * FROM repositories WHERE id = ?
+      `).bind(result.id).first();
+      
+      console.log('查询新创建的仓库记录:', newRepo);
+    } catch (queryError) {
+      console.error('查询新创建的仓库记录失败:', queryError);
+      throw new Error(`查询新创建的仓库记录失败: ${queryError.message}`);
+    }
+    
+    if (!newRepo) {
+      throw new Error(`无法找到ID为${result.id}的新创建仓库记录`);
+    }
     
     return {
       id: newRepo.id,
