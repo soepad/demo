@@ -138,6 +138,23 @@ api.all('/repositories', async (c) => {
     }
 });
 
+// 文件上传API
+api.all('/upload', async (c) => {
+    const { request, env } = c;
+    
+    try {
+        const { onRequest } = await import('./api/upload.js');
+        return await onRequest({ request, env });
+    } catch (error) {
+        console.error('Error processing upload request:', error);
+        return c.json({
+            success: false,
+            error: 'Failed to process upload request',
+            details: error.message
+        }, 500);
+    }
+});
+
 // 全局错误处理
 app.use('*', async (c, next) => {
   try {
