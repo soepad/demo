@@ -1423,7 +1423,7 @@ export async function onRequest(context) {
         console.log('图片ID:', imageId);
 
         if (request.method === 'DELETE') {
-          // 获取图片信息
+          // 获取图片信息，包括repository_id
           const image = await env.DB.prepare('SELECT * FROM images WHERE id = ?').bind(imageId).first();
 
           if (!image) {
@@ -1438,17 +1438,49 @@ export async function onRequest(context) {
 
           console.log('要删除的图片信息:', image);
           
+          // 获取仓库信息
+          let repositoryInfo;
+          if (image.repository_id) {
+            // 如果图片有repository_id，获取对应仓库信息
+            const repository = await env.DB.prepare(`
+              SELECT * FROM repositories WHERE id = ?
+            `).bind(image.repository_id).first();
+            
+            if (repository) {
+              repositoryInfo = {
+                owner: repository.owner || env.GITHUB_OWNER,
+                repo: repository.name,
+                token: repository.token || env.GITHUB_TOKEN
+              };
+              console.log(`使用图片对应的仓库: ${repository.name} (ID: ${repository.id})`);
+            } else {
+              console.log(`图片的仓库ID ${image.repository_id} 不存在，使用默认仓库`);
+            }
+          }
+          
+          // 如果没有找到对应仓库，使用默认仓库信息
+          if (!repositoryInfo) {
+            repositoryInfo = {
+              owner: env.GITHUB_OWNER,
+              repo: env.GITHUB_REPO,
+              token: env.GITHUB_TOKEN
+            };
+            console.log('使用默认仓库信息');
+          }
+          
           // 从GitHub删除图片
           try {
             const octokit = new Octokit({
-              auth: env.GITHUB_TOKEN
+              auth: repositoryInfo.token
             });
 
             try {
               // 尝试删除GitHub上的文件
+              console.log(`尝试从仓库删除: owner=${repositoryInfo.owner}, repo=${repositoryInfo.repo}, path=${image.github_path}`);
+              
               const githubResponse = await octokit.rest.repos.deleteFile({
-                owner: env.GITHUB_OWNER,
-                repo: env.GITHUB_REPO,
+                owner: repositoryInfo.owner,
+                repo: repositoryInfo.repo,
                 path: image.github_path,
                 message: `Delete ${image.filename}`,
                 sha: image.sha,
@@ -1461,8 +1493,8 @@ export async function onRequest(context) {
               
               // 检查是否是"文件不存在"错误
               const isNotFoundError = 
-                githubError.message.includes('Not Found') || 
-                (githubError.status === 404) ||
+                githubError.message?.includes('Not Found') || 
+                githubError.status === 404 ||
                 (githubError.response && githubError.response.status === 404);
                 
               if (!isNotFoundError) {
@@ -1621,7 +1653,7 @@ export async function onRequest(context) {
         for (const id of imageIds) {
           try {
             const image = await env.DB.prepare(`
-              SELECT id, filename, github_path, sha 
+              SELECT id, filename, github_path, sha, repository_id
               FROM images 
               WHERE id = ?
             `).bind(id).first();
@@ -1643,18 +1675,64 @@ export async function onRequest(context) {
           }
         }
         
-        // 批量删除GitHub上的文件，只有成功后才删除数据库记录
+        // 对每个仓库的认证信息进行缓存
+        const repositoryCache = new Map();
+        
+        // 批量删除GitHub上的文件
         for (const image of images) {
           try {
-            console.log(`正在处理图片: ${image.filename}, path: ${image.github_path}, sha: ${image.sha}`);
+            console.log(`正在处理图片: ${image.filename}, path=${image.github_path}, repository_id=${image.repository_id || '默认'}`);
+            
+            // 获取仓库信息
+            let repositoryInfo;
+            
+            if (image.repository_id) {
+              // 检查缓存中是否有该仓库信息
+              if (repositoryCache.has(image.repository_id)) {
+                repositoryInfo = repositoryCache.get(image.repository_id);
+              } else {
+                // 获取仓库信息
+                const repository = await env.DB.prepare(`
+                  SELECT * FROM repositories WHERE id = ?
+                `).bind(image.repository_id).first();
+                
+                if (repository) {
+                  repositoryInfo = {
+                    owner: repository.owner || env.GITHUB_OWNER,
+                    repo: repository.name,
+                    token: repository.token || env.GITHUB_TOKEN
+                  };
+                  // 缓存仓库信息
+                  repositoryCache.set(image.repository_id, repositoryInfo);
+                  console.log(`获取到图片仓库信息: ${repository.name} (ID: ${repository.id})`);
+                }
+              }
+            }
+            
+            // 如果没有找到对应仓库，使用默认仓库信息
+            if (!repositoryInfo) {
+              repositoryInfo = {
+                owner: env.GITHUB_OWNER,
+                repo: env.GITHUB_REPO,
+                token: env.GITHUB_TOKEN
+              };
+              console.log('使用默认仓库信息');
+            }
+            
+            // 为每个仓库创建对应的Octokit实例
+            const repoOctokit = new Octokit({
+              auth: repositoryInfo.token
+            });
             
             let githubDeleteSuccess = false;
             
             // 先尝试从GitHub仓库删除文件
             try {
-              await octokit.rest.repos.deleteFile({
-                owner: env.GITHUB_OWNER,
-                repo: env.GITHUB_REPO,
+              console.log(`尝试从仓库删除: owner=${repositoryInfo.owner}, repo=${repositoryInfo.repo}, path=${image.github_path}`);
+              
+              await repoOctokit.rest.repos.deleteFile({
+                owner: repositoryInfo.owner,
+                repo: repositoryInfo.repo,
                 path: image.github_path,
                 message: `Delete ${image.filename}`,
                 sha: image.sha,
@@ -1666,14 +1744,15 @@ export async function onRequest(context) {
             } catch (githubError) {
               // 检查是否是"文件不存在"错误
               const isNotFoundError = 
-                githubError.message.includes('Not Found') || 
-                (githubError.status === 404) ||
+                githubError.message?.includes('Not Found') || 
+                githubError.status === 404 ||
                 (githubError.response && githubError.response.status === 404);
                 
               if (isNotFoundError) {
                 console.log(`GitHub上文件 ${image.filename} 已不存在，继续处理`);
                 githubDeleteSuccess = true; // 视为删除成功
               } else {
+                console.error(`从GitHub删除文件失败:`, githubError);
                 throw githubError; // 重新抛出其他类型的错误
               }
             }
