@@ -702,7 +702,7 @@ async function safeApiCall(url, options = {}) {
         
         // 提取自定义选项
         const { timeout, ...fetchOptions } = options;
-        const requestTimeout = timeout || 10000; // 默认10秒
+        const requestTimeout = timeout || 30000; // 默认30秒
         
         // 设置请求选项
         const finalOptions = {
@@ -722,15 +722,42 @@ async function safeApiCall(url, options = {}) {
         const timeoutId = setTimeout(() => controller.abort(), requestTimeout);
         
         try {
+            console.log(`发送请求: ${url}`, finalOptions);
             const response = await fetch(url, finalOptions);
             clearTimeout(timeoutId);
             
-            if (!response.ok) {
-                console.error(`API错误: ${url} 返回状态码 ${response.status}`);
-                return { error: `服务器错误 (${response.status})` };
+            // 尝试获取响应内容
+            let responseData;
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                try {
+                    responseData = await response.json();
+                } catch (jsonError) {
+                    console.error('解析JSON响应失败:', jsonError);
+                    responseData = null;
+                }
+            } else {
+                try {
+                    responseData = await response.text();
+                } catch (textError) {
+                    console.error('获取响应文本失败:', textError);
+                    responseData = null;
+                }
             }
             
-            return await response.json();
+            if (!response.ok) {
+                console.error(`API错误: ${url} 返回状态码 ${response.status}`, responseData);
+                
+                // 如果有JSON响应且包含错误信息，使用它
+                if (responseData && typeof responseData === 'object' && responseData.error) {
+                    return { error: responseData.error };
+                }
+                
+                // 否则使用状态码
+                return { error: `服务器错误 (${response.status})${responseData && typeof responseData === 'string' ? ': ' + responseData : ''}` };
+            }
+            
+            return responseData;
         } catch (fetchError) {
             clearTimeout(timeoutId);
             throw fetchError;
@@ -741,7 +768,7 @@ async function safeApiCall(url, options = {}) {
             return { error: '请求超时，请稍后再试' };
         }
         console.error(`API调用错误:`, error);
-        return { error: '网络请求失败，请检查连接' };
+        return { error: '网络请求失败，请检查连接: ' + error.message };
     }
 }
 
@@ -1016,62 +1043,72 @@ function initRepositoryManagement() {
         return card;
     }
     
-    // 创建新仓库
-    async function createRepository() {
+    /**
+     * 创建新仓库
+     * @param {boolean} useSimpleMode - 是否使用简化模式（不调用GitHub API）
+     */
+    async function createRepository(useSimpleMode = true) {
+        const createBtn = this;
+        const originalText = createBtn.innerHTML;
+        
         try {
-            const repoName = prompt('请输入仓库名称（留空使用默认命名规则）:');
+            // 显示加载状态
+            createBtn.disabled = true;
+            createBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 创建中...';
             
-            if (repoName === null) {
-                return; // 用户取消
+            // 获取仓库名称
+            const repoNameInput = document.getElementById('newRepoName');
+            const baseName = repoNameInput ? repoNameInput.value.trim() : 'images-repo';
+            
+            // 决定使用哪个API端点
+            let endpoint = useSimpleMode ? '/api/repositories/create-simple' : '/api/repositories/create';
+            let requestBody = useSimpleMode ? 
+                { repoName: `${baseName}-${Date.now()}` } : 
+                { baseName, useSimpleMode };
+            
+            console.log(`使用${useSimpleMode ? '简化' : '标准'}模式创建仓库:`, requestBody);
+            
+            // 调用API创建仓库
+            const result = await safeApiCall(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+            
+            if (result.error) {
+                throw new Error(result.error);
             }
             
-            const loadingToast = showNotification('正在创建仓库...', 'info', 0);
+            // 显示成功消息
+            showToast('成功创建仓库: ' + result.data.repo, 'success');
             
-            // 使用简单的请求参数
-            const requestBody = {};
-            if (repoName && repoName.trim() !== '') {
-                requestBody.baseName = repoName.trim();
-            }
+            // 刷新仓库列表
+            await loadRepositories();
             
-            console.log('创建仓库请求参数:', requestBody);
-            
-            try {
-                const response = await safeApiCall('/api/repositories', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(requestBody),
-                    timeout: 30000 // 增加超时时间到30秒
-                });
-                
-                // 关闭加载提示
-                try {
-                    document.body.removeChild(loadingToast);
-                } catch (e) {
-                    console.warn('无法移除加载提示:', e);
-                }
-                
-                if (response.error) {
-                    throw new Error(response.error);
-                }
-                
-                console.log('仓库创建成功:', response);
-                showNotification('仓库创建成功', 'success');
-                loadRepositories(); // 重新加载仓库列表
-            } catch (fetchError) {
-                // 关闭加载提示
-                try {
-                    document.body.removeChild(loadingToast);
-                } catch (e) {
-                    console.warn('无法移除加载提示:', e);
-                }
-                
-                throw fetchError;
+            // 清空输入框
+            if (repoNameInput) {
+                repoNameInput.value = '';
             }
         } catch (error) {
             console.error('创建仓库失败:', error);
-            showNotification('创建仓库失败: ' + error.message, 'error');
+            showToast('创建仓库失败: ' + error.message, 'error');
+            
+            // 如果标准模式失败，提示用户尝试简化模式
+            if (!useSimpleMode) {
+                const trySimpleMode = confirm('标准模式创建失败，是否尝试使用简化模式创建仓库？（不调用GitHub API）');
+                if (trySimpleMode) {
+                    createRepository.call(createBtn, true);
+                    return;
+                }
+            }
+        } finally {
+            // 恢复按钮状态
+            if (createBtn) {
+                createBtn.disabled = false;
+                createBtn.innerHTML = originalText;
+            }
         }
     }
     
@@ -1202,7 +1239,14 @@ function initRepositoryManagement() {
     
     // 添加事件监听
     if (createRepoBtn) {
-        createRepoBtn.addEventListener('click', createRepository);
+        createRepoBtn.addEventListener('click', function() {
+            // 获取是否使用简化模式
+            const useSimpleModeCheckbox = document.getElementById('useSimpleMode');
+            const useSimpleMode = useSimpleModeCheckbox ? useSimpleModeCheckbox.checked : true;
+            
+            // 调用创建仓库函数
+            createRepository.call(this, useSimpleMode);
+        });
     }
     
     if (refreshReposBtn) {
