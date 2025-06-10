@@ -249,63 +249,51 @@ export async function onRequest(context) {
       }
       
       let baseName = 'images-repo';
-      let useSimpleMode = true; // 默认使用简化模式
       
       try {
         const data = await request.json();
         if (data && data.baseName) {
           baseName = data.baseName;
         }
-        if (data && typeof data.useSimpleMode === 'boolean') {
-          useSimpleMode = data.useSimpleMode;
-        }
         console.log('解析请求JSON成功:', data);
       } catch (parseError) {
         console.warn('解析请求JSON失败，使用默认仓库名称:', parseError);
       }
       
-      console.log(`创建新仓库，使用基础名称: ${baseName}, 简化模式: ${useSimpleMode}`);
+      console.log(`创建新仓库，使用基础名称: ${baseName}`);
       
       try {
-        let newRepo;
-        
-        if (useSimpleMode) {
-          // 使用简化模式创建仓库（不调用GitHub API）
-          const repoName = `${baseName}-${Date.now()}`;
-          newRepo = await createSimpleRepository(env, repoName);
-        } else {
-          // 检查GitHub相关环境变量
-          if (!env.GITHUB_TOKEN) {
-            console.error('缺少GITHUB_TOKEN环境变量');
-            return new Response(JSON.stringify({
-              success: false,
-              error: '服务器配置错误: 缺少GitHub令牌'
-            }), {
-              status: 500,
-              headers: {
-                'Content-Type': 'application/json',
-                ...corsHeaders
-              }
-            });
-          }
-          
-          if (!env.GITHUB_OWNER) {
-            console.error('缺少GITHUB_OWNER环境变量');
-            return new Response(JSON.stringify({
-              success: false,
-              error: '服务器配置错误: 缺少GitHub所有者'
-            }), {
-              status: 500,
-              headers: {
-                'Content-Type': 'application/json',
-                ...corsHeaders
-              }
-            });
-          }
-          
-          // 使用GitHub API创建仓库
-          newRepo = await createNewRepository(env, baseName);
+        // 检查GitHub相关环境变量
+        if (!env.GITHUB_TOKEN) {
+          console.error('缺少GITHUB_TOKEN环境变量');
+          return new Response(JSON.stringify({
+            success: false,
+            error: '服务器配置错误: 缺少GitHub令牌'
+          }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
         }
+        
+        if (!env.GITHUB_OWNER) {
+          console.error('缺少GITHUB_OWNER环境变量');
+          return new Response(JSON.stringify({
+            success: false,
+            error: '服务器配置错误: 缺少GitHub所有者'
+          }), {
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 使用GitHub API创建仓库
+        const newRepo = await createNewRepository(env, baseName);
         
         console.log('仓库创建成功:', newRepo);
         
