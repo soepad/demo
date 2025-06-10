@@ -161,6 +161,7 @@ export async function createNewRepository(env, currentRepoName) {
     console.log(`尝试创建新仓库: ${newRepoName}`);
     
     // 检查仓库是否已存在
+    let repoExists = false;
     try {
       const existingRepo = await octokit.rest.repos.get({
         owner: env.GITHUB_OWNER,
@@ -169,123 +170,174 @@ export async function createNewRepository(env, currentRepoName) {
       
       if (existingRepo.status === 200) {
         console.log(`仓库 ${newRepoName} 已存在，跳过创建`);
+        repoExists = true;
       }
     } catch (error) {
-      if (error.status === 404) {
-        // 仓库不存在，创建新仓库
-        try {
-          console.log(`尝试创建组织仓库: ${env.GITHUB_OWNER}/${newRepoName}`);
-          
-          // 尝试创建组织仓库
-          await octokit.rest.repos.createInOrg({
-            org: env.GITHUB_OWNER,
-            name: newRepoName,
-            auto_init: true,
-            private: true,
-            description: `图片存储仓库 #${newRepoNumber}`
-          });
-        } catch (orgError) {
-          // 如果创建组织仓库失败，尝试创建个人仓库
-          console.log(`创建组织仓库失败，尝试创建个人仓库: ${env.GITHUB_OWNER}/${newRepoName}`, orgError.message);
-          
-          await octokit.rest.repos.createForAuthenticatedUser({
-            name: newRepoName,
-            auto_init: true,
-            private: true,
-            description: `图片存储仓库 #${newRepoNumber}`
-          });
-        }
+      if (error.status !== 404) {
+        console.error(`检查仓库是否存在时出错:`, error);
+      }
+      // 404错误表示仓库不存在，继续创建
+    }
+    
+    // 如果仓库不存在，创建它
+    if (!repoExists) {
+      try {
+        console.log(`尝试创建组织仓库: ${env.GITHUB_OWNER}/${newRepoName}`);
         
-        console.log(`成功创建新仓库: ${newRepoName}`);
+        // 尝试创建组织仓库
+        await octokit.rest.repos.createInOrg({
+          org: env.GITHUB_OWNER,
+          name: newRepoName,
+          auto_init: true,
+          private: true,
+          description: `图片存储仓库 #${newRepoNumber}`
+        });
         
-        // 创建必要的目录结构
-        await octokit.rest.repos.createOrUpdateFileContents({
+        console.log(`成功创建组织仓库: ${env.GITHUB_OWNER}/${newRepoName}`);
+      } catch (orgError) {
+        // 如果创建组织仓库失败，尝试创建个人仓库
+        console.log(`创建组织仓库失败，尝试创建个人仓库: ${env.GITHUB_OWNER}/${newRepoName}`, orgError.message);
+        
+        await octokit.rest.repos.createForAuthenticatedUser({
+          name: newRepoName,
+          auto_init: true,
+          private: true,
+          description: `图片存储仓库 #${newRepoNumber}`
+        });
+        
+        console.log(`成功创建个人仓库: ${env.GITHUB_OWNER}/${newRepoName}`);
+      }
+      
+      // 等待几秒钟，确保仓库初始化完成
+      console.log('等待仓库初始化完成...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
+    }
+    
+    // 创建必要的目录结构
+    try {
+      console.log(`为仓库 ${newRepoName} 创建必要的目录结构`);
+      
+      // 检查public目录是否存在
+      try {
+        await octokit.rest.repos.getContent({
           owner: env.GITHUB_OWNER,
           repo: newRepoName,
-          path: 'public/images/.gitkeep',
-          message: '初始化图片目录',
-          content: btoa('') // 使用btoa代替Buffer进行base64编码
+          path: 'public'
         });
-      } else {
-        throw error;
+        console.log('public目录已存在');
+      } catch (error) {
+        if (error.status === 404) {
+          // 创建public目录
+          console.log('创建public目录');
+          await octokit.rest.repos.createOrUpdateFileContents({
+            owner: env.GITHUB_OWNER,
+            repo: newRepoName,
+            path: 'public/.gitkeep',
+            message: '创建public目录',
+            content: btoa(''),
+            branch: 'main'
+          });
+        } else {
+          console.error('检查public目录时出错:', error);
+        }
+      }
+      
+      // 检查public/images目录是否存在
+      try {
+        await octokit.rest.repos.getContent({
+          owner: env.GITHUB_OWNER,
+          repo: newRepoName,
+          path: 'public/images'
+        });
+        console.log('public/images目录已存在');
+      } catch (error) {
+        if (error.status === 404) {
+          // 创建public/images目录
+          console.log('创建public/images目录');
+          await octokit.rest.repos.createOrUpdateFileContents({
+            owner: env.GITHUB_OWNER,
+            repo: newRepoName,
+            path: 'public/images/.gitkeep',
+            message: '创建images目录',
+            content: btoa(''),
+            branch: 'main'
+          });
+        } else {
+          console.error('检查public/images目录时出错:', error);
+        }
+      }
+      
+      console.log(`仓库 ${newRepoName} 的目录结构创建完成`);
+    } catch (dirError) {
+      console.error('创建目录结构失败:', dirError);
+      // 继续执行，不因为创建目录失败而中断
+    }
+    
+    // 获取Cloudflare Pages部署钩子
+    let deployHook = env.DEPLOY_HOOK;
+    
+    // 如果有其他仓库，尝试从中获取部署钩子
+    if (!deployHook) {
+      try {
+        const existingRepo = await env.DB.prepare(`
+          SELECT deploy_hook FROM repositories 
+          WHERE deploy_hook IS NOT NULL AND deploy_hook != '' 
+          LIMIT 1
+        `).first();
+        
+        if (existingRepo && existingRepo.deploy_hook) {
+          deployHook = existingRepo.deploy_hook;
+          console.log(`从现有仓库获取部署钩子`);
+        }
+      } catch (error) {
+        console.error('获取现有仓库部署钩子失败:', error);
       }
     }
     
-    // 保存到数据库
-    let result;
+    // 在数据库中创建仓库记录
     try {
-      console.log('保存仓库到数据库:', { name: newRepoName, owner: env.GITHUB_OWNER });
+      const result = await env.DB.prepare(`
+        INSERT INTO repositories (
+          name, owner, token, deploy_hook, status, is_default, size_estimate, priority, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, 'active', 0, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).bind(
+        newRepoName, 
+        env.GITHUB_OWNER, 
+        env.GITHUB_TOKEN,
+        deployHook
+      ).run();
       
-      // 检查repositories表是否存在
-      const tableExists = await env.DB.prepare(`
-        SELECT name FROM sqlite_master WHERE type='table' AND name='repositories'
-      `).first();
+      console.log(`仓库 ${newRepoName} 记录已添加到数据库，ID: ${result.meta?.last_row_id || '未知'}`);
       
-      if (!tableExists) {
-        console.error('repositories表不存在，尝试创建');
-        
-        // 创建repositories表
-        await env.DB.exec(`
-          CREATE TABLE IF NOT EXISTS repositories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            owner TEXT NOT NULL,
-            token TEXT,
-            deploy_hook TEXT,
-            status TEXT DEFAULT 'inactive',
-            size_estimate INTEGER DEFAULT 0,
-            file_count INTEGER DEFAULT 0,
-            priority INTEGER DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          )
-        `);
-        
-        console.log('repositories表创建成功');
-      }
+      // 将其他仓库标记为非活跃
+      await env.DB.prepare(`
+        UPDATE repositories 
+        SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
+        WHERE name != ?
+      `).bind(newRepoName).run();
       
-      // 插入记录
-      result = await env.DB.prepare(`
-        INSERT INTO repositories (name, owner, status, created_at, updated_at, priority)
-        VALUES (?, ?, 'active', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 
-          (SELECT COALESCE(MIN(priority), 0) - 1 FROM repositories))
-        RETURNING id
-      `).bind(newRepoName, env.GITHUB_OWNER).first();
+      console.log(`其他仓库已标记为非活跃`);
       
-      console.log('仓库保存成功:', result);
+      // 返回新仓库信息
+      return {
+        id: result.meta?.last_row_id,
+        owner: env.GITHUB_OWNER,
+        repo: newRepoName,
+        token: env.GITHUB_TOKEN,
+        deployHook: deployHook
+      };
     } catch (dbError) {
-      console.error('保存仓库到数据库失败:', dbError);
-      throw new Error(`保存仓库到数据库失败: ${dbError.message}`);
-    }
-    
-    if (!result || !result.id) {
-      throw new Error('保存仓库成功但未返回ID');
-    }
-    
-    // 查询新创建的仓库记录
-    let newRepo;
-    try {
-      newRepo = await env.DB.prepare(`
-        SELECT * FROM repositories WHERE id = ?
-      `).bind(result.id).first();
+      console.error('添加仓库记录到数据库失败:', dbError);
       
-      console.log('查询新创建的仓库记录:', newRepo);
-    } catch (queryError) {
-      console.error('查询新创建的仓库记录失败:', queryError);
-      throw new Error(`查询新创建的仓库记录失败: ${queryError.message}`);
+      // 即使数据库操作失败，也返回仓库信息
+      return {
+        id: null,
+        owner: env.GITHUB_OWNER,
+        repo: newRepoName,
+        token: env.GITHUB_TOKEN,
+        deployHook: deployHook
+      };
     }
-    
-    if (!newRepo) {
-      throw new Error(`无法找到ID为${result.id}的新创建仓库记录`);
-    }
-    
-    return {
-      id: newRepo.id,
-      owner: newRepo.owner,
-      repo: newRepo.name,
-      token: env.GITHUB_TOKEN,
-      deployHook: env.DEPLOY_HOOK
-    };
   } catch (error) {
     console.error('创建新仓库失败:', error);
     throw error;
@@ -510,16 +562,89 @@ export async function triggerAllRepositoriesDeployHooks(env) {
   const results = [];
   
   try {
-    // 获取所有仓库的部署钩子
+    console.log('开始触发所有仓库的部署钩子...');
+    
+    // 获取所有仓库的部署钩子，包括活跃和非活跃的仓库
     const repos = await env.DB.prepare(`
-      SELECT id, name, deploy_hook FROM repositories
-      WHERE status != 'inactive'
+      SELECT id, name, owner, deploy_hook, status FROM repositories
+      ORDER BY status ASC, id DESC
     `).all();
     
-    for (const repo of repos.results || []) {
+    console.log(`找到 ${repos.results?.length || 0} 个仓库`);
+    
+    // 如果没有仓库，尝试使用环境变量中的部署钩子
+    if (!repos.results || repos.results.length === 0) {
+      console.log('没有找到仓库，尝试使用环境变量中的部署钩子');
+      if (env.DEPLOY_HOOK) {
+        try {
+          console.log(`触发环境变量中的部署钩子...`);
+          const response = await fetch(env.DEPLOY_HOOK, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+
+          const responseText = await response.text();
+          let responseData;
+          try {
+            responseData = JSON.parse(responseText);
+          } catch (e) {
+            responseData = responseText;
+          }
+
+          if (response.ok) {
+            results.push({
+              repoId: 'env',
+              repoName: 'environment-hook',
+              success: true,
+              result: responseData
+            });
+            
+            console.log(`环境变量部署钩子触发成功:`, responseData);
+          } else {
+            results.push({
+              repoId: 'env',
+              repoName: 'environment-hook',
+              success: false,
+              error: `部署触发失败: ${response.status} ${responseText}`,
+              response: responseData
+            });
+            
+            console.error(`环境变量部署钩子触发失败: ${response.status}`, responseData);
+          }
+        } catch (error) {
+          results.push({
+            repoId: 'env',
+            repoName: 'environment-hook',
+            success: false,
+            error: `部署钩子请求异常: ${error.message}`
+          });
+          
+          console.error(`环境变量部署钩子请求异常:`, error);
+        }
+      } else {
+        console.error('没有找到任何可用的部署钩子');
+      }
+      
+      return {
+        success: results.some(r => r.success),
+        results
+      };
+    }
+    
+    // 优先触发活跃仓库的部署钩子
+    const activeRepos = repos.results.filter(repo => repo.status === 'active');
+    console.log(`找到 ${activeRepos.length} 个活跃仓库`);
+    
+    // 如果没有活跃仓库，触发所有仓库的部署钩子
+    const reposToTrigger = activeRepos.length > 0 ? activeRepos : repos.results;
+    
+    for (const repo of reposToTrigger) {
       const deployHook = repo.deploy_hook || env.DEPLOY_HOOK;
       
       if (!deployHook) {
+        console.log(`仓库 ${repo.name} (ID: ${repo.id}) 没有配置部署钩子`);
         results.push({
           repoId: repo.id,
           repoName: repo.name,
@@ -530,7 +655,7 @@ export async function triggerAllRepositoriesDeployHooks(env) {
       }
       
       try {
-        console.log(`触发仓库 ${repo.name} 的部署钩子...`);
+        console.log(`触发仓库 ${repo.name} (ID: ${repo.id}, 状态: ${repo.status}) 的部署钩子...`);
         const response = await fetch(deployHook, {
           method: 'POST',
           headers: {
@@ -538,22 +663,33 @@ export async function triggerAllRepositoriesDeployHooks(env) {
           },
         });
 
+        const responseText = await response.text();
+        let responseData;
+        try {
+          responseData = JSON.parse(responseText);
+        } catch (e) {
+          responseData = responseText;
+        }
+
         if (response.ok) {
-          const result = await response.json();
           results.push({
             repoId: repo.id,
             repoName: repo.name,
             success: true,
-            result
+            result: responseData
           });
+          
+          console.log(`仓库 ${repo.name} 部署钩子触发成功:`, responseData);
         } else {
-          const errorText = await response.text();
           results.push({
             repoId: repo.id,
             repoName: repo.name,
             success: false,
-            error: `部署触发失败: ${response.status} ${errorText}`
+            error: `部署触发失败: ${response.status} ${responseText}`,
+            response: responseData
           });
+          
+          console.error(`仓库 ${repo.name} 部署钩子触发失败: ${response.status}`, responseData);
         }
       } catch (error) {
         results.push({
@@ -562,11 +698,17 @@ export async function triggerAllRepositoriesDeployHooks(env) {
           success: false,
           error: `部署钩子请求异常: ${error.message}`
         });
+        
+        console.error(`仓库 ${repo.name} 部署钩子请求异常:`, error);
       }
     }
     
+    // 检查是否有任何成功的部署触发
+    const hasSuccess = results.some(r => r.success);
+    console.log(`部署钩子触发完成，${hasSuccess ? '有' : '没有'}成功的触发`);
+    
     return {
-      success: results.some(r => r.success),
+      success: hasSuccess,
       results
     };
   } catch (error) {
