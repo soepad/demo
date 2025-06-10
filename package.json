@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "wrangler dev --local",
     "deploy": "wrangler deploy",
-    "build": "echo 'No build step needed - using directory structure as is'"
+    "build": "node -e \"if(process.platform==='win32'){require('child_process').execSync('powershell -ExecutionPolicy Bypass -File ./build.ps1',{stdio:'inherit'})}else{require('child_process').execSync('chmod +x ./build.sh && ./build.sh',{stdio:'inherit'})}\""
   },
   "dependencies": {
     "hono": "^4.0.5",
