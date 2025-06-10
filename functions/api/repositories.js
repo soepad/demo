@@ -214,22 +214,18 @@ export async function onRequest(context) {
   // 创建新仓库
   if ((path === '/create' || path === '') && request.method === 'POST') {
     try {
-      const data = await request.json();
-      const { baseName } = data;
+      let baseName = 'images-repo';
       
-      if (!baseName) {
-        return new Response(JSON.stringify({
-          success: false,
-          error: '缺少基础仓库名称'
-        }), {
-          status: 400,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        });
+      try {
+        const data = await request.json();
+        if (data && data.baseName) {
+          baseName = data.baseName;
+        }
+      } catch (parseError) {
+        console.warn('解析请求JSON失败，使用默认仓库名称:', parseError);
       }
       
+      console.log('创建新仓库，使用基础名称:', baseName);
       const newRepo = await createNewRepository(env, baseName);
       
       return new Response(JSON.stringify({
