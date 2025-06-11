@@ -1756,6 +1756,8 @@ export async function onRequest(context) {
                 // 累加大小和计数
                 repositorySizeUpdates[image.repository_id] += (image.size || 0);
                 repositoryDeleteCount[image.repository_id] += 1;
+                
+                console.log(`仓库 ${image.repository_id} 当前删除统计: ${repositoryDeleteCount[image.repository_id]} 个文件, ${repositorySizeUpdates[image.repository_id]} 字节`);
               }
             
               // 从数据库删除记录
@@ -1794,8 +1796,11 @@ export async function onRequest(context) {
               fileCountToDecrease
             );
             
+            console.log(`仓库 ${repoId} 更新结果:`, updateResult);
+            
             results.repositoryUpdates[repoId] = updateResult;
           } catch (error) {
+            console.error(`更新仓库 ${repoId} 统计失败:`, error);
             results.repositoryUpdates[repoId] = { 
               error: error.message, 
               updated: false 
