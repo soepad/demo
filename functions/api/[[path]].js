@@ -1774,7 +1774,12 @@ export async function onRequest(context) {
         // 更新每个受影响仓库的大小和文件计数
         for (const [repoId, sizeToDecrease] of Object.entries(repositorySizeUpdates)) {
           try {
-            const fileCountToDecrease = repositoryDeleteCount[repoId] || 0;
+            // 确保使用实际删除的文件数量，不要使用默认值
+            const fileCountToDecrease = repositoryDeleteCount[repoId];
+            if (fileCountToDecrease === undefined) {
+              console.error(`仓库 ${repoId} 的删除计数未定义`);
+              continue;
+            }
             console.log(`更新仓库 ${repoId} 大小: -${sizeToDecrease} 字节, 文件数: -${fileCountToDecrease}`);
             const updateResult = await decreaseRepositorySizeEstimate(env, parseInt(repoId), sizeToDecrease, fileCountToDecrease);
             results.repositoryUpdates[repoId] = updateResult;
