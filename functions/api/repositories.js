@@ -114,9 +114,13 @@ async function syncRepositorySize(env, repoId) {
       SELECT value FROM settings WHERE key = 'repository_size_threshold'
     `).first();
     
-    const repoSizeThreshold = thresholdSetting ? 
+    // 确保解析为整数，使用默认值900MB如果没有设置
+    const repoSizeThreshold = thresholdSetting && !isNaN(parseInt(thresholdSetting.value)) ? 
       parseInt(thresholdSetting.value) : 
       900 * 1024 * 1024; // 默认900MB
+    
+    console.log(`使用仓库大小阈值: ${repoSizeThreshold} 字节 (${Math.round(repoSizeThreshold / (1024 * 1024))}MB)`);
+    console.log(`当前仓库实际大小: ${actualSize} 字节 (${Math.round(actualSize / (1024 * 1024))}MB)`);
     
     // 如果达到或超过阈值，更新状态
     if (actualSize >= repoSizeThreshold && repo.status !== 'full') {
@@ -125,7 +129,7 @@ async function syncRepositorySize(env, repoId) {
         WHERE id = ?
       `).bind(repoId).run();
       
-      console.log(`仓库 ${repo.name} 已达到大小阈值，状态更新为 'full'`);
+      console.log(`仓库 ${repo.name} 已达到大小阈值 ${Math.round(repoSizeThreshold / (1024 * 1024))}MB，状态更新为 'full'`);
     } else if (actualSize < repoSizeThreshold && repo.status === 'full') {
       // 如果之前标记为满但现在未满，恢复状态
       await env.DB.prepare(`
@@ -133,7 +137,7 @@ async function syncRepositorySize(env, repoId) {
         WHERE id = ?
       `).bind(repoId).run();
       
-      console.log(`仓库 ${repo.name} 大小低于阈值，状态更新为 'active'`);
+      console.log(`仓库 ${repo.name} 大小低于阈值 ${Math.round(repoSizeThreshold / (1024 * 1024))}MB，状态更新为 'active'`);
     }
     
     return { 
