@@ -1704,8 +1704,6 @@ export async function onRequest(context) {
         // 删除图片主循环
         for (const image of images) {
           try {
-            console.log(`正在处理图片: ${image.filename}, path=${image.github_path}, repository_id=${image.repository_id || '默认'}`);
-            
             // 获取仓库信息
             let repositoryInfo;
             
@@ -1713,7 +1711,6 @@ export async function onRequest(context) {
               // 检查缓存中是否有该仓库信息
               if (repositoryCache.has(image.repository_id)) {
                 repositoryInfo = repositoryCache.get(image.repository_id);
-                console.log(`使用缓存的仓库信息: ${repositoryInfo.repo} (ID: ${repositoryInfo.id})`);
               } else {
                 // 获取仓库信息
                 const repository = await env.DB.prepare(`
@@ -1729,9 +1726,6 @@ export async function onRequest(context) {
                   };
                   // 缓存仓库信息
                   repositoryCache.set(image.repository_id, repositoryInfo);
-                  console.log(`获取到图片仓库信息: ${repository.name} (ID: ${repository.id})`);
-                } else {
-                  console.log(`警告: 找不到仓库ID ${image.repository_id} 的信息`);
                 }
               }
             }
@@ -1743,7 +1737,6 @@ export async function onRequest(context) {
                 repo: env.GITHUB_REPO,
                 token: env.GITHUB_TOKEN
               };
-              console.log('使用默认仓库信息');
             }
 
             // 从GitHub删除文件
@@ -1755,20 +1748,14 @@ export async function onRequest(context) {
                 // 初始化计数器（如果还没有）
                 if (!repositorySizeUpdates[image.repository_id]) {
                   repositorySizeUpdates[image.repository_id] = 0;
-                  console.log(`初始化仓库 ${image.repository_id} 的大小计数器`);
                 }
                 if (!repositoryDeleteCount[image.repository_id]) {
                   repositoryDeleteCount[image.repository_id] = 0;
-                  console.log(`初始化仓库 ${image.repository_id} 的文件计数`);
                 }
                 
                 // 累加大小和计数
                 repositorySizeUpdates[image.repository_id] += (image.size || 0);
                 repositoryDeleteCount[image.repository_id] += 1;
-                
-                console.log(`仓库 ${image.repository_id} 当前删除统计: 大小=${repositorySizeUpdates[image.repository_id]}, 文件数=${repositoryDeleteCount[image.repository_id]}`);
-              } else {
-                console.log('警告: 图片没有关联的仓库ID');
               }
             
               // 从数据库删除记录
@@ -1778,10 +1765,8 @@ export async function onRequest(context) {
               `).bind(image.id).run();
               
               results.success.push(image.id);
-              console.log(`成功删除图片(GitHub和数据库): ${image.filename}`);
             }
           } catch (error) {
-            console.error(`删除图片 ${image.id} 失败:`, error);
             results.failed.push({
               id: image.id,
               error: error.message || '删除失败'
@@ -1789,24 +1774,18 @@ export async function onRequest(context) {
           }
         }
         
-        console.log('删除完成，仓库统计:', {
-          sizeUpdates: repositorySizeUpdates,
-          deleteCount: repositoryDeleteCount
-        });
-        
         // 更新每个受影响仓库的大小和文件计数
         for (const [repoId, sizeToDecrease] of Object.entries(repositorySizeUpdates)) {
           try {
+            // 使用实际删除的文件数量，而不是批次数量
             const fileCountToDecrease = repositoryDeleteCount[repoId];
             if (fileCountToDecrease === undefined) {
-              console.error(`仓库 ${repoId} 的删除计数未定义`);
               continue;
             }
-            console.log(`更新仓库 ${repoId} 大小: -${sizeToDecrease} 字节, 文件数: -${fileCountToDecrease}`);
+            // 直接传入实际删除的文件数量
             const updateResult = await decreaseRepositorySizeEstimate(env, parseInt(repoId), sizeToDecrease, fileCountToDecrease);
             results.repositoryUpdates[repoId] = updateResult;
           } catch (error) {
-            console.error(`更新仓库 ${repoId} 大小失败:`, error);
             results.repositoryUpdates[repoId] = { 
               error: error.message, 
               updated: false 
