@@ -1656,6 +1656,8 @@ export async function onRequest(context) {
         
         // 先获取所有要删除的图片信息
         const images = [];
+        const affectedRepositories = new Set(); // 用于跟踪受影响的仓库
+
         for (const id of imageIds) {
           try {
             const image = await env.DB.prepare(`
@@ -1666,6 +1668,9 @@ export async function onRequest(context) {
             
             if (image) {
               images.push(image);
+              if (image.repository_id) {
+                affectedRepositories.add(image.repository_id);
+              }
             } else {
               results.failed.push({
                 id,
@@ -1684,17 +1689,12 @@ export async function onRequest(context) {
         // 对每个仓库的认证信息进行缓存
         const repositoryCache = new Map();
         
-        // 跟踪每个仓库的删除文件大小总和
-        const repositorySizeUpdates = {};
-        
-        // 统计每个仓库实际成功删除的图片数量
-        const repositoryDeleteCount = {};
-
         console.log('开始批量删除，图片列表:', images.map(img => ({
           id: img.id,
           filename: img.filename,
           repository_id: img.repository_id
         })));
+        console.log('受影响的仓库:', Array.from(affectedRepositories));
 
         // 删除图片主循环
         for (const image of images) {
@@ -1754,8 +1754,9 @@ export async function onRequest(context) {
           }
         }
         
-        // 更新仓库统计信息
-        for (const [repoId, sizeToDecrease] of Object.entries(repositorySizeUpdates)) {
+        // 同步所有受影响的仓库的统计信息
+        console.log('开始同步受影响的仓库统计信息:', Array.from(affectedRepositories));
+        for (const repoId of affectedRepositories) {
           try {
             // 同步文件计数和大小
             const syncResult = await syncRepositoryFileCount(env, parseInt(repoId));
