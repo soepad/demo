@@ -653,7 +653,9 @@ export async function syncRepositoryFileCount(env, repositoryId) {
     
     // 直接从数据库查询实际文件数量和总大小
     const statsResult = await env.DB.prepare(`
-      SELECT COUNT(*) as file_count, COALESCE(SUM(size), 0) as total_size
+      SELECT 
+        COUNT(DISTINCT id) as file_count,
+        COALESCE(SUM(size), 0) as total_size
       FROM images 
       WHERE repository_id = ?
     `).bind(repositoryId).first();
