@@ -923,11 +923,21 @@ function initRepositoryManagement() {
                 </div>
             `;
             
+            // 获取仓库列表
             const response = await safeApiCall('/api/repositories');
-            
             if (response.error) {
                 throw new Error(response.error);
             }
+
+            // 获取阈值设置
+            const settingsResponse = await safeApiCall('/api/settings');
+            if (settingsResponse.error) {
+                throw new Error(settingsResponse.error);
+            }
+
+            const threshold = settingsResponse.data?.repository_size_threshold 
+                ? parseInt(settingsResponse.data.repository_size_threshold) 
+                : null;
 
             const repositories = response.data || [];
             
@@ -945,6 +955,7 @@ function initRepositoryManagement() {
             // 渲染仓库列表
             repoGrid.innerHTML = '';
             repositories.forEach(repo => {
+                repo.size_limit = threshold; // 设置阈值
                 const repoCard = createRepositoryCard(repo);
                 repoGrid.appendChild(repoCard);
             });
@@ -977,7 +988,7 @@ function initRepositoryManagement() {
             </div>
             <div class="repo-info">
                 <p><i class="fas fa-file"></i> ${repo.file_count || 0} 个文件</p>
-                <p><i class="fas fa-hdd"></i> ${formatSize(repo.size_estimate || 0)} / ${formatSize(repo.size_limit)}(阈值)</p>
+                <p><i class="fas fa-hdd"></i> ${formatSize(repo.size_estimate || 0)} / ${formatSize(repo.size_limit || 0)}(阈值)</p>
                 <p><i class="fas fa-clock"></i> 创建于 ${formatDate(repo.created_at)}</p>
             </div>
         `;
