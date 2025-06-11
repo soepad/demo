@@ -273,9 +273,26 @@
                 }
                 
                 // 获取阈值设置
-                const settingsResponse = await fetch('/api/settings');
+                const settingsResponse = await fetch('/api/settings', {
+                    cache: 'no-store',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    }
+                });
                 const settingsData = await settingsResponse.json();
-                const thresholdBytes = parseInt(settingsData.data?.repository_size_threshold || (900 * 1024 * 1024));
+                
+                // 确保我们有一个有效的阈值
+                let thresholdBytes;
+                if (settingsData.data && settingsData.data.repository_size_threshold) {
+                    thresholdBytes = parseInt(settingsData.data.repository_size_threshold);
+                    alert(`仓库页面获取的阈值: ${thresholdBytes} 字节 (${Math.round(thresholdBytes / (1024 * 1024))}MB)`);
+                } else {
+                    thresholdBytes = 900 * 1024 * 1024; // 默认900MB
+                    alert('未找到仓库大小阈值设置，使用默认值900MB');
+                }
+                
                 console.log('仓库页面获取到的设置数据:', settingsData);
                 console.log('解析后的仓库大小阈值 (bytes):', thresholdBytes, '阈值 (MB):', Math.round(thresholdBytes / (1024 * 1024)));
                 
