@@ -560,26 +560,20 @@ export async function updateRepositorySizeEstimate(env, repositoryId, fileSize) 
 }
 
 /**
- * 减少仓库大小估算和文件计数
+ * 减少仓库大小估算
  * @param {Object} env - 环境变量
  * @param {number} repositoryId - 仓库ID
  * @param {number} fileSize - 要减少的文件大小
- * @param {number} fileCountToDecrease - 要减少的文件数量
  * @returns {Promise<Object>} - 返回更新结果
  */
-export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize, fileCountToDecrease) {
+export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize) {
   try {
     if (!repositoryId) {
       console.log('无仓库ID，跳过更新仓库大小');
       return { updated: false, reason: 'no_repository_id' };
     }
 
-    if (fileCountToDecrease === undefined || fileCountToDecrease === null) {
-      console.log('未指定要减少的文件数量，跳过更新');
-      return { updated: false, reason: 'no_file_count' };
-    }
-
-    console.log(`正在减少仓库 ID: ${repositoryId} 的大小估算: -${fileSize} 字节, 文件数: -${fileCountToDecrease}`);
+    console.log(`正在减少仓库 ID: ${repositoryId} 的大小估算: -${fileSize} 字节`);
     
     // 获取当前仓库信息
     const repo = await env.DB.prepare(`
@@ -591,20 +585,17 @@ export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize
       return { updated: false, reason: 'repository_not_found' };
     }
     
-    // 计算新的大小和文件计数，确保不会小于0
+    // 计算新的大小，确保不会小于0
     const newSize = Math.max(0, repo.size_estimate - fileSize);
-    const newFileCount = Math.max(0, repo.file_count - fileCountToDecrease);
     
-    // 更新仓库大小估算和文件计数
+    // 更新仓库大小估算
     await env.DB.prepare(`
       UPDATE repositories 
-      SET size_estimate = ?, 
-          file_count = ?,
-          updated_at = datetime('now', '+8 hours')
+      SET size_estimate = ?, updated_at = datetime('now', '+8 hours')
       WHERE id = ?
-    `).bind(newSize, newFileCount, repositoryId).run();
+    `).bind(newSize, repositoryId).run();
     
-    console.log(`仓库 ${repo.name} (ID: ${repositoryId}) 更新成功，新大小: ${newSize}字节，文件数: ${newFileCount}`);
+    console.log(`仓库 ${repo.name} (ID: ${repositoryId}) 更新成功，新大小: ${newSize}字节`);
     
     // 获取仓库大小阈值
     const thresholdSetting = await env.DB.prepare(`
@@ -632,9 +623,7 @@ export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize
       updated: true,
       repositoryId,
       oldSize: repo.size_estimate,
-      newSize,
-      oldFileCount: repo.file_count,
-      newFileCount
+      newSize
     };
   } catch (error) {
     console.error('减少仓库大小估算失败:', error);
@@ -643,14 +632,14 @@ export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize
 }
 
 /**
- * 更新仓库的文件计数
+ * 同步仓库的文件计数和大小
  * @param {Object} env - 环境变量
  * @param {number} repositoryId - 仓库ID
  * @returns {Promise<Object>} - 返回同步结果
  */
 export async function syncRepositoryFileCount(env, repositoryId) {
   try {
-    console.log(`开始同步仓库 ID: ${repositoryId} 的文件数量`);
+    console.log(`开始同步仓库 ID: ${repositoryId} 的文件数量和大小`);
     
     // 确保仓库存在
     const repo = await env.DB.prepare(`
@@ -662,36 +651,43 @@ export async function syncRepositoryFileCount(env, repositoryId) {
       return { success: false, error: '仓库不存在' };
     }
     
-    // 获取实际文件计数
-    const countResult = await env.DB.prepare(`
-      SELECT COUNT(*) as file_count FROM images WHERE repository_id = ?
+    // 直接从数据库查询实际文件数量和总大小
+    const statsResult = await env.DB.prepare(`
+      SELECT COUNT(*) as file_count, COALESCE(SUM(size), 0) as total_size
+      FROM images 
+      WHERE repository_id = ?
     `).bind(repositoryId).first();
     
-    if (!countResult) {
-      console.error(`无法获取仓库 ID: ${repositoryId} 的文件计数`);
-      return { success: false, error: '无法获取文件计数' };
+    if (!statsResult) {
+      console.error(`无法获取仓库 ID: ${repositoryId} 的统计信息`);
+      return { success: false, error: '无法获取统计信息' };
     }
     
-    const actualFileCount = countResult.file_count || 0;
-    console.log(`仓库 ${repo.name} (ID: ${repositoryId}) 实际文件数量: ${actualFileCount}`);
+    const actualFileCount = statsResult.file_count || 0;
+    const actualSize = statsResult.total_size || 0;
     
-    // 更新仓库的文件计数
+    console.log(`仓库 ${repo.name} (ID: ${repositoryId}) 实际文件数量: ${actualFileCount}, 总大小: ${actualSize} 字节`);
+    
+    // 更新仓库的文件计数和大小
     await env.DB.prepare(`
       UPDATE repositories 
-      SET file_count = ?, updated_at = datetime('now', '+8 hours')
+      SET file_count = ?, 
+          size_estimate = ?,
+          updated_at = datetime('now', '+8 hours')
       WHERE id = ?
-    `).bind(actualFileCount, repositoryId).run();
+    `).bind(actualFileCount, actualSize, repositoryId).run();
     
-    console.log(`仓库 ${repo.name} (ID: ${repositoryId}) 的文件计数已同步: ${actualFileCount}`);
+    console.log(`仓库 ${repo.name} (ID: ${repositoryId}) 的统计信息已同步: ${actualFileCount} 个文件, ${actualSize} 字节`);
     
     return { 
       success: true,
       file_count: actualFileCount,
+      total_size: actualSize,
       repository_id: repositoryId,
       repository_name: repo.name
     };
   } catch (error) {
-    console.error(`同步仓库 ID: ${repositoryId} 文件计数失败:`, error);
+    console.error(`同步仓库 ID: ${repositoryId} 统计信息失败:`, error);
     return { success: false, error: error.message };
   }
 }
