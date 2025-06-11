@@ -316,11 +316,11 @@
                         repo.status === 'active' ? '活跃' : 
                         (repo.status === 'inactive' ? '禁用' : '已满');
                     
-                    // 使用仓库的文件数量，如果不存在则默认为0
-                    const fileCount = typeof repo.file_count === 'number' ? repo.file_count : 0;
-                    
                     // 计算阈值的MB表示
                     const thresholdMB = Math.round(thresholdBytes / (1024 * 1024));
+                    
+                    // 生成唯一ID以便稍后更新
+                    const fileCountId = `card-file-count-${repo.id}`;
                     
                     const card = document.createElement('div');
                     card.className = 'col-md-6 col-lg-4 mb-4';
@@ -336,7 +336,7 @@
                                 <p class="card-text"><strong>创建时间:</strong> ${formatDateTime(repo.created_at)}</p>
                                 <p class="card-text"><strong>最后更新:</strong> ${formatDateTime(repo.updated_at)}</p>
                                 <p class="card-text"><strong>已用空间:</strong> ${formatBytes(repo.size_estimate)} / ${formatBytes(thresholdBytes)}</p>
-                                <p class="card-text"><strong>文件数量:</strong> <span id="file-count-${repo.id}">${fileCount}</span> 个文件</p>
+                                <p class="card-text"><strong>文件数量:</strong> <span id="${fileCountId}">加载中...</span> 个文件</p>
                                 
                                 <div class="progress-bar-wrapper">
                                     <div class="progress">
@@ -380,8 +380,8 @@
                     
                     container.appendChild(card);
                     
-                    // 在页面加载后立即自动同步文件计数
-                    autoSyncFileCount(repo.id, document.getElementById(`file-count-${repo.id}`));
+                    // 异步获取文件数量
+                    syncRepoFileCountInBackground(repo.id, document.getElementById(fileCountId));
                 });
                 
                 // 添加事件监听
@@ -546,11 +546,11 @@
                 const data = await response.json();
                 
                 if (!data.success) {
-                    throw new Error(data.error || 'Unknown error');
+                    throw new Error(data.error || '未知错误');
                 }
                 
                 // 更新文件计数显示
-                const countElement = document.getElementById(`file-count-${repoId}`);
+                const countElement = document.getElementById(`card-file-count-${repoId}`);
                 if (countElement) {
                     countElement.textContent = data.file_count;
                 }
@@ -559,7 +559,7 @@
                 alert(`仓库文件数同步成功，实际文件数: ${data.file_count}`);
                 
             } catch (error) {
-                console.error('Error syncing repository file count:', error);
+                console.error('同步仓库文件数失败:', error);
                 alert(`同步仓库文件数失败: ${error.message}`);
             } finally {
                 // 恢复按钮状态
@@ -568,13 +568,13 @@
             }
         }
         
-        // 页面加载时自动同步文件数（不显示警告）
-        async function autoSyncFileCount(repoId, countElement) {
+        // 异步获取仓库文件数量（不显示通知）
+        async function syncRepoFileCountInBackground(repoId, countElement) {
             try {
+                if (!countElement) return;
+                
                 // 显示加载状态
-                if (countElement) {
-                    countElement.innerHTML = `<small><i class="spinner-border spinner-border-sm" role="status"></i></small>`;
-                }
+                countElement.innerHTML = `<small><i class="spinner-border spinner-border-sm" role="status"></i> 加载中...</small>`;
                 
                 const response = await fetch(`/api/repositories/sync-file-count/${repoId}`, {
                     method: 'POST',
@@ -587,26 +587,16 @@
                 const data = await response.json();
                 
                 if (!data.success) {
-                    throw new Error(data.error || 'Unknown error');
+                    throw new Error(data.error || '未知错误');
                 }
                 
                 // 更新文件计数显示
-                if (countElement) {
-                    countElement.textContent = data.file_count;
-                }
-                
-                console.log(`仓库 ID:${repoId} 文件数自动同步成功，实际文件数: ${data.file_count}`);
-                return data.file_count;
+                countElement.textContent = data.file_count;
+                console.log(`仓库 ID:${repoId} 实际文件数量: ${data.file_count}`);
                 
             } catch (error) {
-                console.error('Error auto syncing repository file count:', error);
-                
-                // 如果提供了元素，显示错误但不弹出警告
-                if (countElement) {
-                    countElement.innerHTML = `<small class="text-danger">同步失败</small>`;
-                }
-                
-                return null;
+                console.error('同步仓库文件数量失败:', error);
+                countElement.innerHTML = `<small class="text-danger">加载失败</small>`;
             }
         }
         
