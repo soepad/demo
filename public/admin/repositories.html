@@ -176,15 +176,21 @@
         
         // 格式化日期时间
         function formatDateTime(dateString) {
+            // 创建Date对象，获取UTC时间
             const date = new Date(dateString);
-            return date.toLocaleString('zh-CN', {
-                year: 'numeric',
-                month: '2-digit',
-                day: '2-digit',
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit'
-            });
+            
+            // 调整为北京时间 (UTC+8)
+            const beijingTime = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+            
+            // 获取年、月、日、小时、分钟
+            const year = beijingTime.getUTCFullYear();
+            const month = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
+            const day = String(beijingTime.getUTCDate()).padStart(2, '0');
+            const hours = String(beijingTime.getUTCHours()).padStart(2, '0');
+            const minutes = String(beijingTime.getUTCMinutes()).padStart(2, '0');
+            
+            // 返回格式化后的日期时间字符串：YYYY/MM/DD HH:MM
+            return `${year}/${month}/${day} ${hours}:${minutes}`;
         }
         
         // 加载仓库列表
