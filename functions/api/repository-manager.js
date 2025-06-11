@@ -301,7 +301,7 @@ export async function createNewRepository(env, currentRepoName) {
       const result = await env.DB.prepare(`
         INSERT INTO repositories (
           name, owner, token, deploy_hook, status, is_default, size_estimate, priority, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, 'active', 0, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, ?, 'active', 0, 0, 0, datetime('now', '+8 hours'), datetime('now', '+8 hours'))
       `).bind(
         newRepoName, 
         env.GITHUB_OWNER, 
@@ -314,7 +314,7 @@ export async function createNewRepository(env, currentRepoName) {
       // 将其他仓库标记为非活跃
       await env.DB.prepare(`
         UPDATE repositories 
-        SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
+        SET status = 'inactive', updated_at = datetime('now', '+8 hours')
         WHERE name != ?
       `).bind(newRepoName).run();
       
@@ -462,7 +462,7 @@ export async function checkRepositorySpaceAndAllocate(env, totalUploadSize) {
     // 如果当前仓库接近阈值，更新其状态为不活跃
     if (remainingSpace < totalUploadSize && remainingSpace < repoSizeThreshold * 0.1) {
       await env.DB.prepare(`
-        UPDATE repositories SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
+        UPDATE repositories SET status = 'inactive', updated_at = datetime('now', '+8 hours')
         WHERE id = ?
       `).bind(activeRepo.id).run();
       
@@ -497,7 +497,7 @@ export async function updateRepositorySizeEstimate(env, repositoryId, fileSize) 
       UPDATE repositories 
       SET size_estimate = size_estimate + ?, 
           file_count = file_count + 1,
-          updated_at = CURRENT_TIMESTAMP 
+          updated_at = datetime('now', '+8 hours')
       WHERE id = ?
     `).bind(fileSize, repositoryId).run();
     
@@ -523,7 +523,7 @@ export async function updateRepositorySizeEstimate(env, repositoryId, fileSize) 
       
       // 更新当前仓库状态为不活跃
       await env.DB.prepare(`
-        UPDATE repositories SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
+        UPDATE repositories SET status = 'inactive', updated_at = datetime('now', '+8 hours')
         WHERE id = ?
       `).bind(repositoryId).run();
       
@@ -591,7 +591,7 @@ export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize
       UPDATE repositories 
       SET size_estimate = ?, 
           file_count = ?,
-          updated_at = CURRENT_TIMESTAMP 
+          updated_at = datetime('now', '+8 hours')
       WHERE id = ?
     `).bind(newSize, newFileCount, repositoryId).run();
     
@@ -611,7 +611,7 @@ export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize
       console.log(`仓库 ${repo.name} 大小现在低于阈值的90%，更新状态为 'active'`);
       
       await env.DB.prepare(`
-        UPDATE repositories SET status = 'active', updated_at = CURRENT_TIMESTAMP
+        UPDATE repositories SET status = 'active', updated_at = datetime('now', '+8 hours')
         WHERE id = ?
       `).bind(repositoryId).run();
     }
@@ -652,7 +652,7 @@ export async function syncRepositoryFileCount(env, repositoryId) {
     // 更新仓库的文件计数
     await env.DB.prepare(`
       UPDATE repositories 
-      SET file_count = ?, updated_at = CURRENT_TIMESTAMP 
+      SET file_count = ?, updated_at = datetime('now', '+8 hours')
       WHERE id = ?
     `).bind(actualFileCount, repositoryId).run();
     
