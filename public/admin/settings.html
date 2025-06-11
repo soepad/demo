@@ -61,6 +61,19 @@
             <h1>系统设置</h1>
         </div>
         
+        <!-- 添加调试信息显示区域 -->
+        <div class="alert alert-info mb-4" id="debugInfo">
+            <h5>当前设置值调试信息：</h5>
+            <pre id="settingsDebug">加载中...</pre>
+            <div class="mt-2">
+                <div class="input-group mb-2">
+                    <input type="number" class="form-control" id="forceThresholdMB" placeholder="输入新的阈值(MB)" min="100" max="1000">
+                    <button class="btn btn-warning" id="forceSetThresholdBtn">强制设置阈值</button>
+                </div>
+                <button class="btn btn-sm btn-primary" id="refreshDebugBtn">刷新调试信息</button>
+            </div>
+        </div>
+        
         <div class="row">
             <div class="col-md-6 mb-4">
                 <div class="card setting-card">
@@ -143,6 +156,46 @@
             return false;
         }
         
+        // 加载调试信息
+        async function loadDebugInfo() {
+            try {
+                const debugElement = document.getElementById('settingsDebug');
+                debugElement.textContent = "正在加载...";
+                
+                // 获取设置数据
+                const response = await fetch('/api/settings');
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '未知错误');
+                }
+                
+                // 格式化显示
+                const settings = data.data;
+                let debugText = "所有设置:\n";
+                
+                for (const [key, value] of Object.entries(settings)) {
+                    debugText += `${key}: ${value}\n`;
+                    if (key === 'repository_size_threshold') {
+                        const mbValue = Math.round(parseInt(value) / (1024 * 1024));
+                        debugText += `-- 转换为MB: ${mbValue}MB\n`;
+                    }
+                }
+                
+                // 显示在页面上
+                debugElement.textContent = debugText;
+                
+                // 检查设置页面上的值
+                const inputValue = document.getElementById('repositorySizeThreshold').value;
+                debugText += `\n页面显示值: ${inputValue}MB`;
+                debugElement.textContent = debugText;
+                
+            } catch (error) {
+                console.error('加载调试信息失败:', error);
+                document.getElementById('settingsDebug').textContent = `加载失败: ${error.message}`;
+            }
+        }
+        
         // 加载设置
         async function loadSettings() {
             try {
@@ -182,6 +235,9 @@
                 // 填充图像处理设置
                 document.getElementById('enableCompression').checked = settings.enable_compression === 'true';
                 document.getElementById('compressionQuality').value = settings.compression_quality || '80';
+                
+                // 加载调试信息
+                loadDebugInfo();
                 
             } catch (error) {
                 console.error('Error loading settings:', error);
@@ -242,6 +298,22 @@
             
             // 加载设置
             loadSettings();
+            
+            // 添加刷新调试信息按钮事件
+            document.getElementById('refreshDebugBtn').addEventListener('click', async () => {
+                await loadDebugInfo();
+            });
+            
+            // 添加强制设置阈值按钮事件
+            document.getElementById('forceSetThresholdBtn').addEventListener('click', async () => {
+                const mbValue = parseInt(document.getElementById('forceThresholdMB').value);
+                if (isNaN(mbValue) || mbValue < 100 || mbValue > 1000) {
+                    alert('请输入有效的阈值(100-1000MB)');
+                    return;
+                }
+                
+                await forceSetThreshold(mbValue);
+            });
             
             // 基本设置表单提交
             document.getElementById('basicSettingsForm').addEventListener('submit', async (e) => {
@@ -319,6 +391,39 @@
                 logout();
             });
         });
+
+        // 强制设置阈值
+        async function forceSetThreshold(mbValue) {
+            try {
+                const byteValue = mbValue * 1024 * 1024;
+                
+                // 更新设置
+                const response = await fetch('/api/settings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        repository_size_threshold: byteValue.toString()
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || '未知错误');
+                }
+                
+                alert(`阈值已强制设置为${mbValue}MB (${byteValue}字节)`);
+                
+                // 重新加载设置
+                await loadSettings();
+                
+            } catch (error) {
+                console.error('强制设置阈值失败:', error);
+                alert(`设置失败: ${error.message}`);
+            }
+        }
     </script>
 </body>
 </html> 
