@@ -916,33 +916,52 @@ function initRepositoryManagement() {
     // 加载仓库列表
     async function loadRepositories() {
         try {
-            // 获取仓库列表
+            repoGrid.innerHTML = `
+                <div class="loading-indicator">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>正在加载仓库列表...</span>
+                </div>
+            `;
+            
             const response = await safeApiCall('/api/repositories');
+            
             if (response.error) {
                 throw new Error(response.error);
             }
 
-            // 获取阈值设置
-            const settingsResponse = await safeApiCall('/api/settings');
-            if (settingsResponse.error) {
-                throw new Error(settingsResponse.error);
+            const repositories = response.data || [];
+            
+            if (repositories.length === 0) {
+                repoGrid.innerHTML = `
+                    <div class="empty-state">
+                        <i class="fas fa-database"></i>
+                        <p>暂无仓库</p>
+                        <p>请点击上方的"创建新仓库"按钮创建第一个仓库</p>
+                    </div>
+                `;
+                return;
             }
-
-            const threshold = settingsResponse.data?.repository_size_threshold 
-                ? parseInt(settingsResponse.data.repository_size_threshold) 
-                : null;
-
-            const container = document.getElementById('repositories-container');
-            if (!container) return;
-
-            container.innerHTML = '';
-            response.data.forEach(repo => {
-                repo.size_limit = threshold;
-                container.appendChild(createRepositoryCard(repo));
+            
+            // 渲染仓库列表
+            repoGrid.innerHTML = '';
+            repositories.forEach(repo => {
+                const repoCard = createRepositoryCard(repo);
+                repoGrid.appendChild(repoCard);
             });
         } catch (error) {
             console.error('加载仓库列表失败:', error);
-            showToast('加载仓库列表失败: ' + error.message, 'error');
+            repoGrid.innerHTML = `
+                <div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>加载仓库列表失败</p>
+                    <p class="error-message">${error.message}</p>
+                    <button class="btn btn-secondary" id="retryLoadReposBtn">
+                        <i class="fas fa-redo"></i> 重试
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('retryLoadReposBtn').addEventListener('click', loadRepositories);
         }
     }
     
@@ -981,7 +1000,7 @@ function initRepositoryManagement() {
             if (response.error) {
                 throw new Error(response.error);
             }
-            
+
             showNotification('已成功设置活跃仓库', 'success');
             loadRepositories(); // 重新加载仓库列表
         } catch (error) {
@@ -1071,8 +1090,8 @@ function initRepositoryManagement() {
                         ` : ''}
                     </div>
                 </div>
-            </div>
-        `;
+                    </div>
+                `;
         
         document.body.appendChild(modal);
         
@@ -1178,9 +1197,9 @@ function initBatchOperations() {
         // 如果当前按钮已经激活，则关闭菜单并返回
         if (batchCopyButton.classList.contains('active')) {
             closeAllDropdowns();
-            return;
-        }
-        
+                return;
+            }
+            
         // 先关闭所有已打开的下拉菜单
         closeAllDropdowns();
         
@@ -1320,7 +1339,7 @@ async function updateDashboardStats() {
             const sizeInBytes = stats.total_size || 0;
             totalSizeElement.textContent = formatFileSize(sizeInBytes, 2);
         }
-    } catch (error) {
+        } catch (error) {
         console.error('更新控制面板统计数据失败:', error);
     }
 }
@@ -1787,10 +1806,10 @@ function createImageCard(image) {
             </div>
             <button class="btn-delete" data-id="${image.id}" title="删除图片">
                 <i class="fas fa-trash"></i> 删除
-            </button>
-        </div>
-    `;
-    
+                    </button>
+                </div>
+            `;
+            
     // 文件名提示工具
     const filenameSpan = card.querySelector('.image-filename');
     
@@ -2898,7 +2917,6 @@ async function batchDeleteImages() {
         throw error;
     }
 }
-
 // 格式化文件大小显示
 function formatSize(bytes) {
     if (bytes === 0) return '0 B';
@@ -2907,3 +2925,4 @@ function formatSize(bytes) {
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
+
