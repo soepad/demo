@@ -232,7 +232,9 @@
                 // 获取阈值设置
                 const settingsResponse = await fetch('/api/settings');
                 const settingsData = await settingsResponse.json();
+                console.log('仓库页面获取到的设置数据:', settingsData);
                 const thresholdBytes = parseInt(settingsData.data?.repository_size_threshold || (900 * 1024 * 1024));
+                console.log('解析后的仓库大小阈值 (bytes):', thresholdBytes, '阈值 (MB):', Math.round(thresholdBytes / (1024 * 1024)));
                 
                 // 渲染仓库卡片
                 repositories.forEach(repo => {
