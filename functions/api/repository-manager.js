@@ -564,14 +564,19 @@ export async function updateRepositorySizeEstimate(env, repositoryId, fileSize) 
  * @param {Object} env - 环境变量
  * @param {number} repositoryId - 仓库ID
  * @param {number} fileSize - 要减少的文件大小
- * @param {number} fileCountToDecrease - 要减少的文件数量（可选，默认1）
+ * @param {number} fileCountToDecrease - 要减少的文件数量
  * @returns {Promise<Object>} - 返回更新结果
  */
-export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize, fileCountToDecrease = 1) {
+export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize, fileCountToDecrease) {
   try {
     if (!repositoryId) {
       console.log('无仓库ID，跳过更新仓库大小');
       return { updated: false, reason: 'no_repository_id' };
+    }
+
+    if (fileCountToDecrease === undefined || fileCountToDecrease === null) {
+      console.log('未指定要减少的文件数量，跳过更新');
+      return { updated: false, reason: 'no_file_count' };
     }
 
     console.log(`正在减少仓库 ID: ${repositoryId} 的大小估算: -${fileSize} 字节, 文件数: -${fileCountToDecrease}`);
