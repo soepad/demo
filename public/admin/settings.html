@@ -102,7 +102,7 @@
                         <form id="repositorySettingsForm">
                             <div class="mb-3">
                                 <label for="repositorySizeThreshold" class="form-label">仓库大小阈值 (MB)</label>
-                                <input type="number" class="form-control" id="repositorySizeThreshold" name="repository_size_threshold" min="100" max="1000" step="1" placeholder="输入阈值，如100MB">
+                                <input type="number" class="form-control" id="repositorySizeThreshold" name="repository_size_threshold" min="100" max="1000" step="1" placeholder="输入阈值 (MB)">
                                 <div class="form-text">设置仓库大小阈值，达到此阈值后将自动切换到新仓库。建议不超过900MB，最大不能超过1GB。</div>
                             </div>
                             <div class="mb-3">
@@ -250,13 +250,13 @@
                     
                     console.log(`当前仓库大小阈值: ${bytesValue} 字节 (${mbValue}MB)`);
                     
-                    // 直接设置输入框的值为MB值
-                    document.getElementById('repositorySizeThreshold').value = mbValue;
-                    document.getElementById('repositorySizeThreshold').placeholder = `当前值: ${mbValue}MB`;
+                    // 不自动填充值，让用户自己输入
+                    document.getElementById('repositorySizeThreshold').value = '';
+                    document.getElementById('repositorySizeThreshold').placeholder = `输入阈值 (MB)`;
                 } else {
                     console.log('未找到仓库大小阈值设置，请输入您需要的值');
                     document.getElementById('repositorySizeThreshold').value = '';
-                    document.getElementById('repositorySizeThreshold').placeholder = '请输入阈值 (MB)';
+                    document.getElementById('repositorySizeThreshold').placeholder = '输入阈值 (MB)';
                 }
                 
                 // 填充其他设置
