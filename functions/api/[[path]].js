@@ -102,6 +102,52 @@ async function triggerDeployHook(env) {
   }
 }
 
+// 从GitHub删除图片的辅助函数
+async function deleteImageFromGithub(env, image, repositoryInfo) {
+  try {
+    const octokit = new Octokit({
+      auth: repositoryInfo.token
+    });
+
+    try {
+      // 尝试删除GitHub上的文件
+      console.log(`尝试从仓库删除: owner=${repositoryInfo.owner}, repo=${repositoryInfo.repo}, path=${image.github_path}`);
+      
+      const githubResponse = await octokit.rest.repos.deleteFile({
+        owner: repositoryInfo.owner,
+        repo: repositoryInfo.repo,
+        path: image.github_path,
+        message: `Delete ${image.filename}`,
+        sha: image.sha,
+        branch: 'main'
+      });
+
+      console.log('从GitHub删除图片成功:', githubResponse);
+      return true;
+    } catch (githubError) {
+      console.error('从GitHub删除图片失败:', githubError);
+      
+      // 检查是否是"文件不存在"错误
+      const isNotFoundError = 
+        githubError.message?.includes('Not Found') || 
+        githubError.status === 404 ||
+        (githubError.response && githubError.response.status === 404);
+        
+      if (!isNotFoundError) {
+        // 如果不是"文件不存在"错误，返回失败
+        throw new Error(`从GitHub删除图片失败: ${githubError.message}`);
+      }
+      
+      // 如果是"文件不存在"错误，记录日志但继续处理
+      console.log('GitHub上文件已不存在，继续删除数据库记录');
+      return true;
+    }
+  } catch (error) {
+    console.error('删除操作失败:', error);
+    throw error;
+  }
+}
+
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
@@ -1474,78 +1520,30 @@ export async function onRequest(context) {
 
           // 从GitHub删除图片
           try {
-            const octokit = new Octokit({
-              auth: repositoryInfo.token
-            });
+            const githubDeleteSuccess = await deleteImageFromGithub(env, image, repositoryInfo);
 
-            try {
-              // 尝试删除GitHub上的文件
-              console.log(`尝试从仓库删除: owner=${repositoryInfo.owner}, repo=${repositoryInfo.repo}, path=${image.github_path}`);
-              
-              const githubResponse = await octokit.rest.repos.deleteFile({
-                owner: repositoryInfo.owner,
-                repo: repositoryInfo.repo,
-              path: image.github_path,
-              message: `Delete ${image.filename}`,
-              sha: image.sha,
-              branch: 'main'
-            });
+            if (githubDeleteSuccess) {
+              // 从数据库删除记录
+              await env.DB.prepare('DELETE FROM images WHERE id = ?').bind(imageId).run();
+              console.log('从数据库删除图片成功');
 
-              console.log('从GitHub删除图片成功:', githubResponse);
-          } catch (githubError) {
-            console.error('从GitHub删除图片失败:', githubError);
-              
-              // 检查是否是"文件不存在"错误
-              const isNotFoundError = 
-                githubError.message?.includes('Not Found') || 
-                githubError.status === 404 ||
-                (githubError.response && githubError.response.status === 404);
-                
-              if (!isNotFoundError) {
-                // 如果不是"文件不存在"错误，返回失败
-                return new Response(JSON.stringify({ 
-                  success: false, 
-                  error: '从GitHub删除图片失败', 
-                  details: githubError.message 
-                }), {
-                  status: 500,
-                  headers: {
-                    'Content-Type': 'application/json',
-                    ...corsHeaders
-                  }
-                });
+              // 触发Cloudflare Pages部署钩子
+              const deployResult = await triggerDeployHook(env);
+              if (deployResult.success) {
+                console.log('图片删除后部署已成功触发');
+              } else {
+                console.error('图片删除后部署失败:', deployResult.error);
               }
-              
-              // 如果是"文件不存在"错误，记录日志但继续处理
-              console.log('GitHub上文件已不存在，继续删除数据库记录');
-          }
 
-            // 更新仓库大小估算和文件计数
-            if (image.repository_id) {
-              const sizeResult = await decreaseRepositorySizeEstimate(env, image.repository_id, image.size || 0);
-              console.log('更新仓库大小和文件计数结果:', sizeResult);
+              return new Response(JSON.stringify({ 
+                success: true
+              }), {
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...corsHeaders
+                }
+              });
             }
-            
-            // GitHub删除成功或文件不存在时，从数据库删除记录
-          await env.DB.prepare('DELETE FROM images WHERE id = ?').bind(imageId).run();
-          console.log('从数据库删除图片成功');
-
-          // 触发Cloudflare Pages部署钩子
-          const deployResult = await triggerDeployHook(env);
-          if (deployResult.success) {
-            console.log('图片删除后部署已成功触发');
-          } else {
-            console.error('图片删除后部署失败:', deployResult.error);
-          }
-
-            return new Response(JSON.stringify({ 
-              success: true
-            }), {
-            headers: {
-              'Content-Type': 'application/json',
-              ...corsHeaders
-            }
-          });
           } catch (error) {
             console.error('删除操作失败:', error);
             return new Response(JSON.stringify({ 
