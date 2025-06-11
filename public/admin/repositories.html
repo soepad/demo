@@ -316,7 +316,7 @@
                         repo.status === 'active' ? '活跃' : 
                         (repo.status === 'inactive' ? '禁用' : '已满');
                     
-                    // 确保file_count是正确的值
+                    // 使用仓库的文件数量，如果不存在则默认为0
                     const fileCount = typeof repo.file_count === 'number' ? repo.file_count : 0;
                     
                     // 计算阈值的MB表示
@@ -336,7 +336,7 @@
                                 <p class="card-text"><strong>创建时间:</strong> ${formatDateTime(repo.created_at)}</p>
                                 <p class="card-text"><strong>最后更新:</strong> ${formatDateTime(repo.updated_at)}</p>
                                 <p class="card-text"><strong>已用空间:</strong> ${formatBytes(repo.size_estimate)} / ${formatBytes(thresholdBytes)}</p>
-                                <p class="card-text"><strong>文件数量:</strong> ${fileCount} 个文件</p>
+                                <p class="card-text"><strong>文件数量:</strong> <span id="file-count-${repo.id}">${fileCount}</span> 个文件</p>
                                 
                                 <div class="progress-bar-wrapper">
                                     <div class="progress">
@@ -379,6 +379,9 @@
                     `;
                     
                     container.appendChild(card);
+                    
+                    // 在页面加载后立即自动同步文件计数
+                    autoSyncFileCount(repo.id, document.getElementById(`file-count-${repo.id}`));
                 });
                 
                 // 添加事件监听
@@ -524,7 +527,7 @@
             }
         }
         
-        // 同步仓库文件数量
+        // 同步仓库文件数量（按钮点击）
         async function syncRepositoryFileCount(repoId, button) {
             try {
                 // 显示加载状态
@@ -546,8 +549,11 @@
                     throw new Error(data.error || 'Unknown error');
                 }
                 
-                // 重新加载仓库列表
-                await loadRepositories();
+                // 更新文件计数显示
+                const countElement = document.getElementById(`file-count-${repoId}`);
+                if (countElement) {
+                    countElement.textContent = data.file_count;
+                }
                 
                 // 显示成功消息
                 alert(`仓库文件数同步成功，实际文件数: ${data.file_count}`);
@@ -555,10 +561,52 @@
             } catch (error) {
                 console.error('Error syncing repository file count:', error);
                 alert(`同步仓库文件数失败: ${error.message}`);
-                
+            } finally {
                 // 恢复按钮状态
                 button.disabled = false;
                 button.innerHTML = originalContent;
+            }
+        }
+        
+        // 页面加载时自动同步文件数（不显示警告）
+        async function autoSyncFileCount(repoId, countElement) {
+            try {
+                // 显示加载状态
+                if (countElement) {
+                    countElement.innerHTML = `<small><i class="spinner-border spinner-border-sm" role="status"></i></small>`;
+                }
+                
+                const response = await fetch(`/api/repositories/sync-file-count/${repoId}`, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Unknown error');
+                }
+                
+                // 更新文件计数显示
+                if (countElement) {
+                    countElement.textContent = data.file_count;
+                }
+                
+                console.log(`仓库 ID:${repoId} 文件数自动同步成功，实际文件数: ${data.file_count}`);
+                return data.file_count;
+                
+            } catch (error) {
+                console.error('Error auto syncing repository file count:', error);
+                
+                // 如果提供了元素，显示错误但不弹出警告
+                if (countElement) {
+                    countElement.innerHTML = `<small class="text-danger">同步失败</small>`;
+                }
+                
+                return null;
             }
         }
         
