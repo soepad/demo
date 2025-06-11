@@ -383,8 +383,8 @@ function initSettings() {
                     const repositoryNameTemplate = document.getElementById('repositoryNameTemplate');
                     
                     if (repositorySizeThreshold) {
-                        const thresholdMB = Math.round(parseInt(settings.repository_size_threshold || '943718400') / (1024 * 1024));
-                        repositorySizeThreshold.value = thresholdMB;
+                        repositorySizeThreshold.value = '';
+                        repositorySizeThreshold.placeholder = '输入阈值 (MB)';
                     }
                     
                     if (repositoryNameTemplate) {
