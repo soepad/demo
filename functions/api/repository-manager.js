@@ -155,11 +155,12 @@ export async function createNewRepository(env, currentRepoName) {
       console.warn('查询已存在仓库失败，使用默认序号:', error);
     }
     
-    // 生成新序号
+    // 生成新序号，使用三位数字格式(001, 002, ...)
     const newRepoNumber = maxNumber + 1;
-    const newRepoName = `${baseRepoName}-${newRepoNumber}`;
+    const paddedNumber = String(newRepoNumber).padStart(3, '0');
+    const newRepoName = `${baseRepoName}-${paddedNumber}`;
     
-    console.log(`尝试创建新仓库: ${newRepoName}`);
+    console.log(`尝试创建新仓库: ${newRepoName} (序号: ${paddedNumber})`);
     
     // 检查仓库是否已存在
     let repoExists = false;
