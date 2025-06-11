@@ -199,8 +199,20 @@
         // 加载设置
         async function loadSettings() {
             try {
-                console.log('开始加载设置...');
-                const response = await fetch('/api/settings');
+                alert('正在加载设置，将强制刷新页面显示阈值...');
+                
+                // 添加时间戳和随机数防止缓存
+                const timestamp = new Date().getTime();
+                const random = Math.random().toString(36).substring(2, 15);
+                const response = await fetch(`/api/settings?t=${timestamp}&r=${random}`, {
+                    cache: 'no-store',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate',
+                        'Pragma': 'no-cache',
+                        'Expires': '0'
+                    }
+                });
+                
                 if (!response.ok) {
                     throw new Error('Failed to fetch settings');
                 }
@@ -210,34 +222,34 @@
                     throw new Error(data.error || 'Unknown error');
                 }
                 
-                console.log('获取到设置数据:', data);
+                // 输出获取到的数据
+                alert('获取到的设置数据: ' + JSON.stringify(data.data));
+                
                 const settings = data.data;
                 
-                // 输出所有设置
-                console.log('所有设置:', settings);
-                console.log('仓库大小阈值设置:', settings.repository_size_threshold);
+                // 填充仓库设置 - 显示原始值和换算的MB值
+                if (settings.repository_size_threshold) {
+                    const bytesValue = parseInt(settings.repository_size_threshold);
+                    const mbValue = Math.round(bytesValue / (1024 * 1024));
+                    
+                    alert(`仓库大小阈值: ${bytesValue} 字节 (${mbValue}MB)`);
+                    
+                    // 直接设置输入框值
+                    document.getElementById('repositorySizeThreshold').value = mbValue;
+                } else {
+                    alert('未找到仓库大小阈值设置，将使用默认值900MB');
+                    document.getElementById('repositorySizeThreshold').value = 900;
+                }
                 
-                // 填充基本设置
+                // 填充其他设置
                 document.getElementById('siteName').value = settings.site_name || '';
                 document.getElementById('allowGuestUpload').checked = settings.allow_guest_upload === 'true';
-                
-                // 填充仓库设置
-                const repositorySizeThresholdMB = Math.round(parseInt(settings.repository_size_threshold || '943718400') / (1024 * 1024));
-                console.log('从后端获取的仓库大小阈值:', settings.repository_size_threshold, '转换为MB:', repositorySizeThresholdMB);
-                document.getElementById('repositorySizeThreshold').value = repositorySizeThresholdMB;
                 document.getElementById('repositoryNameTemplate').value = settings.repository_name_template || '';
-                
-                // 填充上传设置
                 const maxFileSizeMB = Math.round(parseInt(settings.max_file_size || '10485760') / (1024 * 1024));
                 document.getElementById('maxFileSize').value = maxFileSizeMB;
                 document.getElementById('allowedTypes').value = settings.allowed_types || 'image/jpeg,image/png,image/gif';
-                
-                // 填充图像处理设置
                 document.getElementById('enableCompression').checked = settings.enable_compression === 'true';
                 document.getElementById('compressionQuality').value = settings.compression_quality || '80';
-                
-                // 加载调试信息
-                loadDebugInfo();
                 
             } catch (error) {
                 console.error('Error loading settings:', error);
@@ -337,6 +349,11 @@
                 const nameTemplate = formData.get('repository_name_template');
                 
                 // 验证阈值
+                if (isNaN(thresholdMB) || thresholdMB < 100) {
+                    alert('仓库大小阈值不能小于100MB');
+                    return;
+                }
+                
                 if (thresholdMB > 1000) {
                     alert('仓库大小阈值不能超过1GB');
                     return;
@@ -349,12 +366,45 @@
                     }
                 }
                 
+                // 转换为字节
+                const thresholdBytes = thresholdMB * 1024 * 1024;
+                
+                // 显示确认
+                const confirmMsg = `您将设置仓库大小阈值为:\n${thresholdMB}MB (${thresholdBytes}字节)\n是否确认?`;
+                if (!window.confirm(confirmMsg)) {
+                    return;
+                }
+                
                 const settings = {
-                    repository_size_threshold: (thresholdMB * 1024 * 1024).toString(),
+                    repository_size_threshold: thresholdBytes.toString(),
                     repository_name_template: nameTemplate
                 };
                 
-                await saveSettings('repositorySettingsForm', settings);
+                alert(`正在保存设置:\n${JSON.stringify(settings, null, 2)}`);
+                
+                try {
+                    const response = await fetch('/api/settings', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Cache-Control': 'no-cache'
+                        },
+                        body: JSON.stringify(settings)
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        alert(`设置已保存成功！\n仓库大小阈值: ${thresholdMB}MB (${thresholdBytes}字节)`);
+                        
+                        // 重新加载设置
+                        await loadSettings();
+                    } else {
+                        alert(`保存失败: ${result.error || '未知错误'}`);
+                    }
+                } catch (error) {
+                    alert(`保存出错: ${error.message}`);
+                }
             });
             
             // 上传设置表单提交
