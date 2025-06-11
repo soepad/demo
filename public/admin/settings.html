@@ -243,20 +243,20 @@
                 
                 const settings = data.data;
                 
-                // 填充仓库设置 - 不设置默认值，让用户自己输入
-                if (settings.repository_size_threshold) {
-                    const bytesValue = parseInt(settings.repository_size_threshold);
-                    const mbValue = Math.round(bytesValue / (1024 * 1024));
-                    
-                    console.log(`当前仓库大小阈值: ${bytesValue} 字节 (${mbValue}MB)`);
-                    
-                    // 不自动填充值，让用户自己输入
-                    document.getElementById('repositorySizeThreshold').value = '';
-                    document.getElementById('repositorySizeThreshold').placeholder = `输入阈值 (MB)`;
+                // 填充仓库设置
+               if (settings.repository_size_threshold) {
+                  const bytesValue = parseInt(settings.repository_size_threshold);
+                  const mbValue = Math.round(bytesValue / (1024 * 1024));
+    
+                  console.log(`当前仓库大小阈值: ${bytesValue} 字节 (${mbValue}MB)`);
+    
+                  // 设置输入框的值
+                 document.getElementById('repositorySizeThreshold').value = mbValue;
+                 document.getElementById('repositorySizeThreshold').placeholder = `输入阈值 (MB)`;
                 } else {
-                    console.log('未找到仓库大小阈值设置，请输入您需要的值');
-                    document.getElementById('repositorySizeThreshold').value = '';
-                    document.getElementById('repositorySizeThreshold').placeholder = '输入阈值 (MB)';
+                console.log('未找到仓库大小阈值设置，请输入您需要的值');
+                document.getElementById('repositorySizeThreshold').value = '';
+                document.getElementById('repositorySizeThreshold').placeholder = '输入阈值 (MB)';
                 }
                 
                 // 填充其他设置
