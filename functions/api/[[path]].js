@@ -1692,14 +1692,15 @@ export async function onRequest(context) {
         // 跟踪每个仓库的删除文件大小总和
         const repositorySizeUpdates = {};
         
-        // 统计每个仓库实际删除的图片数量
+        // 统计每个仓库实际成功删除的图片数量
         const repositoryDeleteCount = {};
         for (const image of images) {
+          // 只有真正被成功删除的图片才计数
+          // 这里先初始化为0，后面在删除成功时累加
           if (image.repository_id) {
             if (!repositoryDeleteCount[image.repository_id]) {
               repositoryDeleteCount[image.repository_id] = 0;
             }
-            repositoryDeleteCount[image.repository_id] += 1;
           }
         }
         
@@ -1800,6 +1801,9 @@ export async function onRequest(context) {
             
             results.success.push(image.id);
               console.log(`成功删除图片(GitHub和数据库): ${image.filename}`);
+              if (image.repository_id) {
+                repositoryDeleteCount[image.repository_id] += 1;
+              }
             }
           } catch (error) {
             console.error(`删除图片 ${image.id} 失败:`, error);
