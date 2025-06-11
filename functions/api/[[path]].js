@@ -1753,20 +1753,44 @@ export async function onRequest(context) {
             });
           }
         }
+
+        // 等待一小段时间，确保所有删除操作都完成
+        await new Promise(resolve => setTimeout(resolve, 1000));
         
         // 同步所有受影响的仓库的统计信息
         console.log('开始同步受影响的仓库统计信息:', Array.from(affectedRepositories));
         for (const repoId of affectedRepositories) {
           try {
-            // 同步文件计数和大小
-            const syncResult = await syncRepositoryFileCount(env, parseInt(repoId));
-            console.log(`仓库 ${repoId} 统计信息同步结果:`, syncResult);
+            // 直接从数据库查询实际文件数量和总大小
+            const statsResult = await env.DB.prepare(`
+              SELECT 
+                COUNT(DISTINCT id) as file_count,
+                COALESCE(SUM(size), 0) as total_size
+              FROM images 
+              WHERE repository_id = ?
+            `).bind(parseInt(repoId)).first();
             
-            results.repositoryUpdates[repoId] = {
-              success: syncResult.success,
-              fileCount: syncResult.file_count,
-              totalSize: syncResult.total_size
-            };
+            if (statsResult) {
+              const actualFileCount = statsResult.file_count || 0;
+              const actualSize = statsResult.total_size || 0;
+              
+              // 更新仓库的文件计数和大小
+              await env.DB.prepare(`
+                UPDATE repositories 
+                SET file_count = ?, 
+                    size_estimate = ?,
+                    updated_at = datetime('now', '+8 hours')
+                WHERE id = ?
+              `).bind(actualFileCount, actualSize, parseInt(repoId)).run();
+              
+              results.repositoryUpdates[repoId] = {
+                success: true,
+                fileCount: actualFileCount,
+                totalSize: actualSize
+              };
+              
+              console.log(`仓库 ${repoId} 统计信息已更新: ${actualFileCount} 个文件, ${actualSize} 字节`);
+            }
           } catch (error) {
             console.error(`更新仓库 ${repoId} 统计失败:`, error);
             results.repositoryUpdates[repoId] = { 
