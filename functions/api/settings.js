@@ -74,20 +74,60 @@ async function getAllSettings(env) {
  */
 async function updateSettings(env, settings) {
   try {
+    console.log('更新设置，收到的数据:', settings);
+    
     // 开始事务
     const batch = [];
     
     for (const [key, value] of Object.entries(settings)) {
-      batch.push(
-        env.DB.prepare(`
-          INSERT OR REPLACE INTO settings (key, value, updated_at)
-          VALUES (?, ?, CURRENT_TIMESTAMP)
-        `).bind(key, value)
-      );
+      console.log(`准备更新设置: ${key} = ${value}`);
+      
+      // 特殊处理仓库大小阈值
+      if (key === 'repository_size_threshold') {
+        const thresholdValue = value.toString();
+        const thresholdBytes = parseInt(thresholdValue);
+        const thresholdMB = Math.round(thresholdBytes / (1024 * 1024));
+        
+        console.log(`仓库大小阈值将被设置为: ${thresholdBytes} 字节 (${thresholdMB}MB)`);
+        
+        // 确保数据库记录正确
+        batch.push(
+          env.DB.prepare(`
+            INSERT OR REPLACE INTO settings (key, value, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+          `).bind(key, thresholdValue)
+        );
+        
+        // 添加一条日志记录，用于验证
+        batch.push(
+          env.DB.prepare(`
+            INSERT OR REPLACE INTO settings (key, value, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+          `).bind(key + '_log', `设置于${new Date().toISOString()}，值为${thresholdBytes}字节 (${thresholdMB}MB)`)
+        );
+      } else {
+        batch.push(
+          env.DB.prepare(`
+            INSERT OR REPLACE INTO settings (key, value, updated_at)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+          `).bind(key, value)
+        );
+      }
     }
     
     // 执行批量更新
+    console.log(`准备执行 ${batch.length} 个数据库操作`);
     await env.DB.batch(batch);
+    console.log('设置更新成功');
+    
+    // 验证更新
+    if (settings.repository_size_threshold) {
+      const verify = await env.DB.prepare(`
+        SELECT value FROM settings WHERE key = 'repository_size_threshold'
+      `).first();
+      
+      console.log('验证更新后的仓库大小阈值:', verify?.value);
+    }
     
   } catch (error) {
     console.error('更新设置失败:', error);
@@ -114,7 +154,17 @@ export async function onRequest(context) {
   // 获取所有设置
   if (request.method === 'GET') {
     try {
+      console.log('接收到获取设置请求');
       const settings = await getAllSettings(env);
+      
+      // 特殊处理仓库大小阈值，确保返回正确的值
+      if (settings.repository_size_threshold) {
+        const thresholdBytes = parseInt(settings.repository_size_threshold);
+        const thresholdMB = Math.round(thresholdBytes / (1024 * 1024));
+        console.log(`返回仓库大小阈值: ${thresholdBytes} 字节 (${thresholdMB}MB)`);
+      } else {
+        console.log('警告：未找到仓库大小阈值设置');
+      }
       
       return new Response(JSON.stringify({
         success: true,
@@ -122,6 +172,9 @@ export async function onRequest(context) {
       }), {
         headers: {
           'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0',
           ...corsHeaders
         }
       });
