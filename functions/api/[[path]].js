@@ -1776,34 +1776,23 @@ export async function onRequest(context) {
           }
         }
         
-        // 更新每个受影响仓库的大小和文件计数
+        // 更新仓库统计信息
         for (const [repoId, sizeToDecrease] of Object.entries(repositorySizeUpdates)) {
           try {
-            // 使用实际删除的文件数量
-            const fileCountToDecrease = repositoryDeleteCount[repoId];
-            if (fileCountToDecrease === undefined || fileCountToDecrease === 0) {
-              console.log(`仓库 ${repoId} 没有成功删除的文件，跳过更新`);
-              continue;
-            }
+            // 同步文件计数和大小
+            const syncResult = await syncRepositoryFileCount(env, parseInt(repoId));
+            console.log(`仓库 ${repoId} 统计信息同步结果:`, syncResult);
             
-            console.log(`更新仓库 ${repoId} 统计: 减少 ${fileCountToDecrease} 个文件, ${sizeToDecrease} 字节`);
-            
-            // 直接传入实际删除的文件数量
-            const updateResult = await decreaseRepositorySizeEstimate(
-              env, 
-              parseInt(repoId), 
-              sizeToDecrease, 
-              fileCountToDecrease
-            );
-            
-            console.log(`仓库 ${repoId} 更新结果:`, updateResult);
-            
-            results.repositoryUpdates[repoId] = updateResult;
+            results.repositoryUpdates[repoId] = {
+              success: syncResult.success,
+              fileCount: syncResult.file_count,
+              totalSize: syncResult.total_size
+            };
           } catch (error) {
             console.error(`更新仓库 ${repoId} 统计失败:`, error);
             results.repositoryUpdates[repoId] = { 
               error: error.message, 
-              updated: false 
+              success: false 
             };
           }
         }
