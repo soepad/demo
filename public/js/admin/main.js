@@ -383,7 +383,7 @@ function initSettings() {
                     const repositoryNameTemplate = document.getElementById('repositoryNameTemplate');
                     
                     if (repositorySizeThreshold) {
-                        // 永远不自动填充值
+                        // 不自动填充 value，只设置 placeholder
                         repositorySizeThreshold.value = '';
                         repositorySizeThreshold.placeholder = '输入阈值 (MB)';
                     }
@@ -967,258 +967,26 @@ function initRepositoryManagement() {
     
     // 创建仓库卡片
     function createRepositoryCard(repo) {
-        const card = document.createElement('div');
-        card.className = 'repo-card';
-        card.dataset.repoId = repo.id;
-        
-        // 从设置中获取仓库大小阈值
-        const fetchThreshold = async () => {
-            try {
-                const settingsResponse = await safeApiCall('/api/settings');
-                if (settingsResponse.error) {
-                    throw new Error(settingsResponse.error);
-                }
-                
-                const settings = settingsResponse.data || {};
-                // 解析阈值，默认900MB
-                let thresholdBytes = 900 * 1024 * 1024;
-                if (settings.repository_size_threshold) {
-                    thresholdBytes = parseInt(settings.repository_size_threshold);
-                }
-                
-                return thresholdBytes;
-            } catch (error) {
-                console.error('获取仓库阈值设置失败:', error);
-                return 900 * 1024 * 1024; // 默认900MB
-            }
-        };
-        
-        // 从API获取最新的文件数量
-        const fetchFileCount = async () => {
-            try {
-                const countResponse = await safeApiCall(`/api/repositories/sync-file-count/${repo.id}`, {
-                    method: 'POST',
-                    headers: {
-                        'Cache-Control': 'no-cache, no-store, must-revalidate'
-                    }
-                });
-                
-                if (countResponse.error) {
-                    throw new Error(countResponse.error);
-                }
-                
-                return countResponse.file_count || 0;
-            } catch (error) {
-                console.error(`获取仓库 ${repo.id} 文件数量失败:`, error);
-                return repo.file_count || 0;
-            }
-        };
-        
-        // 初始渲染卡片
-        const usedSizeMB = Math.round(repo.size_estimate / (1024 * 1024) * 100) / 100;
-        
-        // 确定仓库状态样式和文本
-        let statusClass = 'inactive';
-        let statusText = '未使用';
-        
-        if (repo.status === 'active') {
-            statusClass = 'active';
-            statusText = '当前使用';
-        } else if (repo.status === 'inactive') {
-            statusClass = 'inactive';
-            statusText = '未使用';
-        } else if (repo.status === 'full') {
-            statusClass = 'full';
-            statusText = '已满';
-        }
-        
-        // 设置初始渲染
-        const fileCountId = `file-count-${repo.id}`;
-        const maxSizeId = `max-size-${repo.id}`;
-        const usageBarId = `usage-bar-${repo.id}`;
-        const usageTextId = `usage-text-${repo.id}`;
-        
-        card.innerHTML = `
-            <div class="repo-header">
-                <h3 class="repo-name">${repo.name}</h3>
-                <div class="repo-status ${statusClass}">
-                    ${statusText}
+        return `
+            <div class="repo-card" data-repo-id="${repo.id}">
+                <div class="repo-header">
+                    <h3>${repo.name}</h3>
+                    <div class="repo-actions">
+                        <button class="btn btn-sm btn-primary" onclick="editRepository(${repo.id})">
+                            <i class="fas fa-edit"></i> 编辑
+                        </button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteRepository(${repo.id})">
+                            <i class="fas fa-trash"></i> 删除
+                        </button>
+                    </div>
                 </div>
-            </div>
-            <div class="repo-info">
-                <div class="info-item">
-                    <i class="fas fa-file-image"></i>
-                    <span><span id="${fileCountId}">加载中...</span> 个文件</span>
+                <div class="repo-info">
+                    <p><i class="fas fa-file"></i> ${repo.file_count || 0} 个文件</p>
+                    <p><i class="fas fa-hdd"></i> ${formatSize(repo.size_estimate || 0)} / ${formatSize(repo.size_limit || 100 * 1024 * 1024)}</p>
+                    <p><i class="fas fa-clock"></i> 创建于 ${formatDate(repo.created_at)}</p>
                 </div>
-                <div class="info-item">
-                    <i class="fas fa-hdd"></i>
-                    <span>${usedSizeMB} MB / <span id="${maxSizeId}">加载中...</span></span>
-                </div>
-                <div class="info-item">
-                    <i class="fas fa-calendar-alt"></i>
-                    <span>创建于 ${formatDate(repo.created_at)}</span>
-                </div>
-            </div>
-            <div class="repo-usage-bar">
-                <div id="${usageBarId}" class="usage-fill" style="width: 0%"></div>
-                <span id="${usageTextId}" class="usage-text">计算中...</span>
-            </div>
-            <div class="repo-actions">
-                <button class="btn btn-sm ${repo.status === 'active' ? 'btn-disabled' : 'btn-primary'}" ${repo.status === 'active' ? 'disabled' : ''} data-action="activate">
-                    <i class="fas fa-check-circle"></i> 设为活跃
-                </button>
-                <button class="btn btn-sm btn-secondary" data-action="details">
-                    <i class="fas fa-info-circle"></i> 详情
-                </button>
-                <button class="btn btn-sm btn-info" data-action="sync-count">
-                    <i class="fas fa-sync"></i> 同步文件数
-                </button>
             </div>
         `;
-        
-        // 添加事件监听
-        const activateBtn = card.querySelector('[data-action="activate"]');
-        const detailsBtn = card.querySelector('[data-action="details"]');
-        const syncCountBtn = card.querySelector('[data-action="sync-count"]');
-        
-        if (activateBtn) {
-            activateBtn.addEventListener('click', () => activateRepository(repo.id));
-        }
-        
-        if (detailsBtn) {
-            detailsBtn.addEventListener('click', () => showRepositoryDetails(repo));
-        }
-        
-        if (syncCountBtn) {
-            syncCountBtn.addEventListener('click', async () => {
-                syncCountBtn.disabled = true;
-                syncCountBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 同步中...';
-                
-                try {
-                    const fileCount = await fetchFileCount();
-                    document.getElementById(fileCountId).textContent = fileCount;
-                    showToast(`文件数同步成功: ${fileCount}个文件`, 'success');
-                } catch (error) {
-                    showToast('同步文件数失败', 'error');
-                } finally {
-                    syncCountBtn.disabled = false;
-                    syncCountBtn.innerHTML = '<i class="fas fa-sync"></i> 同步文件数';
-                }
-            });
-        }
-        
-        // 异步加载真实数据
-        (async () => {
-            try {
-                // 同时获取文件数和阈值
-                const [fileCount, thresholdBytes] = await Promise.all([
-                    fetchFileCount(),
-                    fetchThreshold()
-                ]);
-                
-                // 更新文件数
-                const fileCountElement = document.getElementById(fileCountId);
-                if (fileCountElement) {
-                    fileCountElement.textContent = fileCount;
-                }
-                
-                // 更新最大大小显示
-                const maxSizeMB = Math.round(thresholdBytes / (1024 * 1024));
-                const maxSizeElement = document.getElementById(maxSizeId);
-                if (maxSizeElement) {
-                    maxSizeElement.textContent = `${maxSizeMB} MB`;
-                }
-                
-                // 更新使用率
-                const usagePercent = Math.min(Math.round((repo.size_estimate / thresholdBytes) * 100), 100);
-                const usageBarElement = document.getElementById(usageBarId);
-                const usageTextElement = document.getElementById(usageTextId);
-                
-                if (usageBarElement) {
-                    // 设置颜色样式
-                    let usageFillClass = '';
-                    if (usagePercent > 90) {
-                        usageFillClass = 'danger';
-                    } else if (usagePercent > 70) {
-                        usageFillClass = 'warning';
-                    }
-                    
-                    usageBarElement.className = `usage-fill ${usageFillClass}`;
-                    usageBarElement.style.width = `${usagePercent}%`;
-                }
-                
-                if (usageTextElement) {
-                    usageTextElement.textContent = `${usagePercent}%`;
-                }
-            } catch (error) {
-                console.error('异步更新仓库卡片数据失败:', error);
-            }
-        })();
-        
-        return card;
-    }
-    
-    /**
-     * 创建新仓库
-     */
-    async function createRepository() {
-        const createBtn = this;
-        const originalText = createBtn.innerHTML;
-        
-        try {
-            // 显示加载状态
-            createBtn.disabled = true;
-            createBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 创建中...';
-            
-            // 获取仓库名称
-            const repoNameInput = document.getElementById('newRepoName');
-            let baseName = repoNameInput ? repoNameInput.value.trim() : 'images-repo';
-            
-            // 确保baseName不为空
-            if (!baseName || baseName.trim() === '') {
-                baseName = 'images-repo';
-            }
-            
-            // 使用API端点
-            let endpoint = '/api/repositories';
-            
-            let requestBody = { baseName };
-            
-            console.log(`创建仓库:`, requestBody);
-            
-            // 调用API创建仓库
-            const result = await safeApiCall(endpoint, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestBody)
-            });
-            
-            if (result.error) {
-                throw new Error(result.error);
-            }
-            
-            // 显示成功消息
-            showToast('成功创建仓库: ' + result.data.repo, 'success');
-            
-            // 刷新仓库列表
-            await loadRepositories();
-            
-            // 清空输入框
-            if (repoNameInput) {
-                repoNameInput.value = '';
-            }
-        } catch (error) {
-            console.error('创建仓库失败:', error);
-            showToast('创建仓库失败: ' + error.message, 'error');
-        } finally {
-            // 恢复按钮状态
-            if (createBtn) {
-                createBtn.disabled = false;
-                createBtn.innerHTML = originalText;
-            }
-        }
     }
     
     // 激活仓库
@@ -3094,5 +2862,62 @@ function addDebugModeToggle() {
             showNotification('提示：您可以使用 Alt+D 快捷键切换调试模式', 'info', 8000);
             localStorage.setItem('debugTipShown', 'true');
         }, 2000);
+    }
+}
+
+// 在删除图片后更新仓库文件数
+async function updateRepositoryFileCount(repoId) {
+    try {
+        const response = await safeApiCall(`/api/repositories/${repoId}`);
+        if (response.error) {
+            throw new Error(response.error);
+        }
+        
+        const repo = response.data;
+        const repoCard = document.querySelector(`.repo-card[data-repo-id="${repoId}"]`);
+        if (repoCard) {
+            const fileCountElement = repoCard.querySelector('.repo-info p:first-child');
+            if (fileCountElement) {
+                fileCountElement.innerHTML = `<i class="fas fa-file"></i> ${repo.file_count || 0} 个文件`;
+            }
+        }
+    } catch (error) {
+        console.error('更新仓库文件数失败:', error);
+    }
+}
+
+// 修改批量删除函数，添加文件数更新
+async function batchDeleteImages() {
+    try {
+        const response = await safeApiCall('/api/images/batch-delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ imageIds })
+        });
+
+        if (response.error) {
+            throw new Error(response.error);
+        }
+
+        // 更新仓库文件数
+        const affectedRepos = new Set();
+        for (const imageId of imageIds) {
+            const image = await getImageDetails(imageId);
+            if (image && image.repository_id) {
+                affectedRepos.add(image.repository_id);
+            }
+        }
+
+        // 更新所有受影响的仓库文件数
+        for (const repoId of affectedRepos) {
+            await updateRepositoryFileCount(repoId);
+        }
+
+        return response;
+    } catch (error) {
+        console.error('批量删除失败:', error);
+        throw error;
     }
 }
