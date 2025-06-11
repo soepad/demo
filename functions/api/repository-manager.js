@@ -564,16 +564,17 @@ export async function updateRepositorySizeEstimate(env, repositoryId, fileSize) 
  * @param {Object} env - 环境变量
  * @param {number} repositoryId - 仓库ID
  * @param {number} fileSize - 要减少的文件大小
+ * @param {number} fileCountToDecrease - 要减少的文件数量（可选，默认1）
  * @returns {Promise<Object>} - 返回更新结果
  */
-export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize) {
+export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize, fileCountToDecrease = 1) {
   try {
     if (!repositoryId) {
       console.log('无仓库ID，跳过更新仓库大小');
       return { updated: false, reason: 'no_repository_id' };
     }
 
-    console.log(`正在减少仓库 ID: ${repositoryId} 的大小估算: -${fileSize} 字节`);
+    console.log(`正在减少仓库 ID: ${repositoryId} 的大小估算: -${fileSize} 字节, 文件数: -${fileCountToDecrease}`);
     
     // 获取当前仓库信息
     const repo = await env.DB.prepare(`
@@ -587,7 +588,7 @@ export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize
     
     // 计算新的大小和文件计数，确保不会小于0
     const newSize = Math.max(0, repo.size_estimate - fileSize);
-    const newFileCount = Math.max(0, repo.file_count - 1);
+    const newFileCount = Math.max(0, repo.file_count - fileCountToDecrease);
     
     // 更新仓库大小估算和文件计数
     await env.DB.prepare(`
@@ -608,7 +609,7 @@ export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize
     // 确保解析为整数，使用默认值900MB如果没有设置
     const repoSizeThreshold = thresholdSetting && !isNaN(parseInt(thresholdSetting.value)) ? 
       parseInt(thresholdSetting.value) : 
-      900 * 1024 * 1024; // 默认900MB
+      900 * 1024 * 1024;
     
     console.log(`使用仓库大小阈值: ${repoSizeThreshold} 字节 (${Math.round(repoSizeThreshold / (1024 * 1024))}MB)`);
     
