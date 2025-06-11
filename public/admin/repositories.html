@@ -103,6 +103,9 @@
                 <button class="btn btn-primary" id="syncAllSizesBtn">
                     <i class="bi bi-arrow-repeat"></i> 同步所有仓库大小
                 </button>
+                <button class="btn btn-info" id="syncAllFileCountsBtn">
+                    <i class="bi bi-hash"></i> 同步所有文件数
+                </button>
             </div>
         </div>
         
@@ -312,6 +315,12 @@
                         repo.status === 'active' ? '活跃' : 
                         (repo.status === 'inactive' ? '禁用' : '已满');
                     
+                    // 确保file_count是正确的值
+                    const fileCount = typeof repo.file_count === 'number' ? repo.file_count : 0;
+                    
+                    // 计算阈值的MB表示
+                    const thresholdMB = Math.round(thresholdBytes / (1024 * 1024));
+                    
                     const card = document.createElement('div');
                     card.className = 'col-md-6 col-lg-4 mb-4';
                     card.innerHTML = `
@@ -326,6 +335,7 @@
                                 <p class="card-text"><strong>创建时间:</strong> ${formatDateTime(repo.created_at)}</p>
                                 <p class="card-text"><strong>最后更新:</strong> ${formatDateTime(repo.updated_at)}</p>
                                 <p class="card-text"><strong>已用空间:</strong> ${formatBytes(repo.size_estimate)} / ${formatBytes(thresholdBytes)}</p>
+                                <p class="card-text"><strong>文件数量:</strong> ${fileCount} 个文件</p>
                                 
                                 <div class="progress-bar-wrapper">
                                     <div class="progress">
@@ -339,6 +349,10 @@
                                 <div class="actions-container">
                                     <button class="btn btn-sm btn-outline-primary btn-icon sync-size-btn" data-repo-id="${repo.id}">
                                         <i class="bi bi-arrow-repeat"></i> 同步大小
+                                    </button>
+                                    
+                                    <button class="btn btn-sm btn-outline-info btn-icon sync-count-btn" data-repo-id="${repo.id}">
+                                        <i class="bi bi-hash"></i> 同步文件数
                                     </button>
                                     
                                     ${repo.status !== 'active' ? `
@@ -371,6 +385,13 @@
                     btn.addEventListener('click', async (e) => {
                         const repoId = e.currentTarget.dataset.repoId;
                         await syncRepositorySize(repoId, e.currentTarget);
+                    });
+                });
+                
+                document.querySelectorAll('.sync-count-btn').forEach(btn => {
+                    btn.addEventListener('click', async (e) => {
+                        const repoId = e.currentTarget.dataset.repoId;
+                        await syncRepositoryFileCount(repoId, e.currentTarget);
                     });
                 });
                 
@@ -502,6 +523,44 @@
             }
         }
         
+        // 同步仓库文件数量
+        async function syncRepositoryFileCount(repoId, button) {
+            try {
+                // 显示加载状态
+                const originalContent = button.innerHTML;
+                button.disabled = true;
+                button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 同步中...`;
+                
+                const response = await fetch(`/api/repositories/sync-file-count/${repoId}`, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Unknown error');
+                }
+                
+                // 重新加载仓库列表
+                await loadRepositories();
+                
+                // 显示成功消息
+                alert(`仓库文件数同步成功，实际文件数: ${data.file_count}`);
+                
+            } catch (error) {
+                console.error('Error syncing repository file count:', error);
+                alert(`同步仓库文件数失败: ${error.message}`);
+                
+                // 恢复按钮状态
+                button.disabled = false;
+                button.innerHTML = originalContent;
+            }
+        }
+        
         // 创建新仓库
         async function createRepository(baseName) {
             try {
@@ -562,28 +621,70 @@
                 createRepoModal.show();
             });
             
-            // 确认创建仓库
-            document.getElementById('confirmCreateRepo').addEventListener('click', () => {
+            // 确认创建仓库按钮点击事件
+            document.getElementById('confirmCreateRepo').addEventListener('click', async () => {
                 const baseName = document.getElementById('baseRepoName').value.trim();
                 if (!baseName) {
                     alert('请输入基础仓库名称');
                     return;
                 }
                 
-                createRepository(baseName);
+                await createRepository(baseName);
             });
             
-            // 同步所有仓库大小
-            document.getElementById('syncAllSizesBtn').addEventListener('click', (e) => {
-                syncAllRepositoriesSizes(e.currentTarget);
+            // 同步所有仓库大小按钮点击事件
+            document.getElementById('syncAllSizesBtn').addEventListener('click', async () => {
+                await syncAllRepositoriesSizes(document.getElementById('syncAllSizesBtn'));
             });
             
-            // 退出登录
-            document.getElementById('logoutBtn').addEventListener('click', (e) => {
-                e.preventDefault();
+            // 同步所有仓库文件数按钮点击事件
+            document.getElementById('syncAllFileCountsBtn').addEventListener('click', async () => {
+                await syncAllRepositoriesFileCounts(document.getElementById('syncAllFileCountsBtn'));
+            });
+            
+            // 退出登录按钮点击事件
+            document.getElementById('logoutBtn').addEventListener('click', () => {
                 logout();
             });
         });
+        
+        // 同步所有仓库文件数
+        async function syncAllRepositoriesFileCounts(button) {
+            try {
+                // 显示加载状态
+                const originalContent = button.innerHTML;
+                button.disabled = true;
+                button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 同步中...`;
+                
+                const response = await fetch('/api/repositories/sync-all-file-counts', {
+                    method: 'POST',
+                    cache: 'no-store',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Unknown error');
+                }
+                
+                // 重新加载仓库列表
+                await loadRepositories();
+                
+                // 显示成功消息
+                alert('所有仓库文件数同步成功');
+                
+            } catch (error) {
+                console.error('Error syncing all repositories file counts:', error);
+                alert(`同步所有仓库文件数失败: ${error.message}`);
+            } finally {
+                // 恢复按钮状态
+                button.disabled = false;
+                button.innerHTML = originalContent;
+            }
+        }
     </script>
 </body>
 </html> 
