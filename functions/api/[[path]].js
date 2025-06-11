@@ -1743,14 +1743,19 @@ export async function onRequest(context) {
             if (githubDeleteSuccess) {
               // 累计每个仓库的删除大小和文件数
               if (image.repository_id) {
+                // 初始化计数器（如果还没有）
                 if (!repositorySizeUpdates[image.repository_id]) {
                   repositorySizeUpdates[image.repository_id] = 0;
                 }
                 if (!repositoryDeleteCount[image.repository_id]) {
                   repositoryDeleteCount[image.repository_id] = 0;
                 }
+                
+                // 累加大小和计数
                 repositorySizeUpdates[image.repository_id] += (image.size || 0);
                 repositoryDeleteCount[image.repository_id] += 1;
+                
+                console.log(`仓库 ${image.repository_id} 当前删除统计: 大小=${repositorySizeUpdates[image.repository_id]}, 文件数=${repositoryDeleteCount[image.repository_id]}`);
               }
             
               // 从数据库删除记录
@@ -1774,7 +1779,6 @@ export async function onRequest(context) {
         // 更新每个受影响仓库的大小和文件计数
         for (const [repoId, sizeToDecrease] of Object.entries(repositorySizeUpdates)) {
           try {
-            // 确保使用实际删除的文件数量，不要使用默认值
             const fileCountToDecrease = repositoryDeleteCount[repoId];
             if (fileCountToDecrease === undefined) {
               console.error(`仓库 ${repoId} 的删除计数未定义`);
