@@ -111,6 +111,13 @@
             仓库管理系统会自动监控仓库大小，当接近阈值时自动创建新仓库并切换。您也可以手动管理仓库状态。
         </div>
         
+        <!-- 添加调试信息显示区域 -->
+        <div class="alert alert-secondary mb-4" id="debugInfo">
+            <h5>仓库阈值调试信息：</h5>
+            <pre id="repoDebug">加载中...</pre>
+            <button class="btn btn-sm btn-primary" id="refreshDebugBtn">刷新调试信息</button>
+        </div>
+        
         <div class="row" id="repositoriesContainer">
             <div class="col-12 text-center py-5">
                 <div class="spinner-border" role="status">
@@ -193,6 +200,42 @@
             return `${year}/${month}/${day} ${hours}:${minutes}`;
         }
         
+        // 加载调试信息
+        async function loadDebugInfo() {
+            try {
+                const debugElement = document.getElementById('repoDebug');
+                debugElement.textContent = "正在加载...";
+                
+                // 获取设置数据
+                const settingsResponse = await fetch('/api/settings');
+                const settingsData = await settingsResponse.json();
+                
+                if (!settingsData.success) {
+                    throw new Error(settingsData.error || '未知错误');
+                }
+                
+                const settings = settingsData.data;
+                
+                // 计算阈值
+                const thresholdRaw = settings.repository_size_threshold;
+                const thresholdBytes = parseInt(thresholdRaw || '943718400');
+                const thresholdMB = Math.round(thresholdBytes / (1024 * 1024));
+                
+                // 格式化显示
+                let debugText = "API返回的设置数据:\n";
+                debugText += `repository_size_threshold (原始值): ${thresholdRaw}\n`;
+                debugText += `repository_size_threshold (解析值): ${thresholdBytes}\n`;
+                debugText += `repository_size_threshold (MB): ${thresholdMB}MB\n\n`;
+                
+                // 显示在页面上
+                debugElement.textContent = debugText;
+                
+            } catch (error) {
+                console.error('加载调试信息失败:', error);
+                document.getElementById('repoDebug').textContent = `加载失败: ${error.message}`;
+            }
+        }
+        
         // 加载仓库列表
         async function loadRepositories() {
             try {
@@ -232,9 +275,12 @@
                 // 获取阈值设置
                 const settingsResponse = await fetch('/api/settings');
                 const settingsData = await settingsResponse.json();
-                console.log('仓库页面获取到的设置数据:', settingsData);
                 const thresholdBytes = parseInt(settingsData.data?.repository_size_threshold || (900 * 1024 * 1024));
+                console.log('仓库页面获取到的设置数据:', settingsData);
                 console.log('解析后的仓库大小阈值 (bytes):', thresholdBytes, '阈值 (MB):', Math.round(thresholdBytes / (1024 * 1024)));
+                
+                // 加载调试信息
+                loadDebugInfo();
                 
                 // 渲染仓库卡片
                 repositories.forEach(repo => {
@@ -488,7 +534,12 @@
             // 加载仓库列表
             loadRepositories();
             
-            // 创建仓库按钮点击事件
+            // 添加刷新调试信息按钮事件
+            document.getElementById('refreshDebugBtn').addEventListener('click', async () => {
+                await loadDebugInfo();
+            });
+            
+            // 创建新仓库按钮点击事件
             document.getElementById('createRepoBtn').addEventListener('click', () => {
                 const createRepoModal = new bootstrap.Modal(document.getElementById('createRepoModal'));
                 createRepoModal.show();
