@@ -42,13 +42,15 @@ if [ ! -z "$REPOS" ]; then
   echo -e "${GREEN}使用环境变量REPOS中的仓库列表${NC}"
   REPO_LIST=$(echo $REPOS | tr ',' ' ')
 else
-  # 默认仓库列表
+  # 默认仓库列表，使用三位数字格式
   echo -e "${YELLOW}未指定REPOS环境变量，将使用默认仓库列表${NC}"
-  REPO_LIST="images-repo-1"
+  REPO_LIST="images-repo-001"
   
-  # 尝试查找更多可能的仓库（基于命名模式）
-  for i in {2..10}; do
-    REPO_NAME="images-repo-$i"
+  # 尝试查找更多可能的仓库（基于命名模式），使用三位数字格式
+  for i in {2..100}; do
+    # 将数字格式化为三位数，例如001, 002, ...
+    PADDED_NUM=$(printf "%03d" $i)
+    REPO_NAME="images-repo-$PADDED_NUM"
     echo -e "${YELLOW}尝试检查仓库 $REPO_NAME 是否存在...${NC}"
     
     # 使用GitHub API检查仓库是否存在
@@ -63,6 +65,34 @@ else
       break
     fi
   done
+  
+  # 如果没有找到任何三位数字格式的仓库，尝试查找旧格式的仓库（为了向后兼容）
+  if [ "$REPO_LIST" == "images-repo-001" ] && [ "$HTTP_CODE" != "200" ]; then
+    echo -e "${YELLOW}未找到三位数字格式的仓库，尝试查找旧格式仓库...${NC}"
+    REPO_LIST=""
+    
+    for i in {1..10}; do
+      REPO_NAME="images-repo-$i"
+      echo -e "${YELLOW}尝试检查旧格式仓库 $REPO_NAME 是否存在...${NC}"
+      
+      HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token $GITHUB_TOKEN" \
+        "https://api.github.com/repos/$GITHUB_OWNER/$REPO_NAME")
+      
+      if [ "$HTTP_CODE" == "200" ]; then
+        echo -e "${GREEN}发现旧格式仓库: $REPO_NAME${NC}"
+        REPO_LIST="$REPO_LIST $REPO_NAME"
+      else
+        echo -e "${YELLOW}旧格式仓库 $REPO_NAME 不存在或无法访问，停止查找更多仓库${NC}"
+        break
+      fi
+    done
+    
+    # 如果仍然没有找到任何仓库，使用默认值
+    if [ -z "$REPO_LIST" ]; then
+      echo -e "${YELLOW}未找到任何可用仓库，使用默认值 images-repo-001${NC}"
+      REPO_LIST="images-repo-001"
+    fi
+  fi
 fi
 
 echo -e "${GREEN}将处理以下仓库:${NC}"
