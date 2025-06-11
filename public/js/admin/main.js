@@ -383,6 +383,7 @@ function initSettings() {
                     const repositoryNameTemplate = document.getElementById('repositoryNameTemplate');
                     
                     if (repositorySizeThreshold) {
+                        // 永远不自动填充值
                         repositorySizeThreshold.value = '';
                         repositorySizeThreshold.placeholder = '输入阈值 (MB)';
                     }
