@@ -164,6 +164,7 @@
                 
                 // 填充仓库设置
                 const repositorySizeThresholdMB = Math.round(parseInt(settings.repository_size_threshold || '943718400') / (1024 * 1024));
+                console.log('从后端获取的仓库大小阈值:', settings.repository_size_threshold, '转换为MB:', repositorySizeThresholdMB);
                 document.getElementById('repositorySizeThreshold').value = repositorySizeThresholdMB;
                 document.getElementById('repositoryNameTemplate').value = settings.repository_name_template || '';
                 
