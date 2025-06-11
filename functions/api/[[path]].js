@@ -1694,14 +1694,29 @@ export async function onRequest(context) {
         
         // 统计每个仓库实际成功删除的图片数量
         const repositoryDeleteCount = {};
-        for (const image of images) {
-          // 只有真正被成功删除的图片才计数
-          // 这里先初始化为0，后面在删除成功时累加
-          if (image.repository_id) {
-            if (!repositoryDeleteCount[image.repository_id]) {
-              repositoryDeleteCount[image.repository_id] = 0;
+
+       // 删除图片主循环
+       for (const image of images) {
+         try {
+           // ...你的删除逻辑...
+           if (githubDeleteSuccess) {
+             // 删除成功，计数
+             if (image.repository_id) {
+              if (!repositoryDeleteCount[image.repository_id]) {
+                repositoryDeleteCount[image.repository_id] = 0;
+              }
+              repositoryDeleteCount[image.repository_id] += 1;
             }
           }
+         } catch (error) {
+            // ...错误处理...
+         }
+       }
+
+        // 删除完后，统一更新每个仓库的 file_count
+        for (const [repoId, count] of Object.entries(repositoryDeleteCount)) {
+          // 你还可以统计总大小
+          await decreaseRepositorySizeEstimate(env, parseInt(repoId), 总大小, count);
         }
         
         // 批量删除GitHub上的文件
@@ -1858,36 +1873,27 @@ export async function onRequest(context) {
       }
     }
 
-    // 同步仓库文件计数
-    if (path === 'repositories/sync-file-count' && request.method === 'POST') {
+    // 同步仓库文件计数（支持 /repositories/sync-file-count/{repoId} 格式）
+    if (path.match(/^repositories\/sync-file-count\/(\d+)$/) && request.method === 'POST') {
       try {
         // 检查用户会话
-        const session = await checkSession(request, env);
-        if (!session) {
-          return jsonResponse({ error: '未授权访问' }, 401);
-        }
-        
-        // 解析请求数据
-        const data = await request.json();
-        const { repository_id } = data;
-        
-        let result;
-        if (repository_id) {
-          // 同步特定仓库
-          result = await syncRepositoryFileCount(env, repository_id);
-        } else {
-          // 同步所有仓库
-          result = await syncAllRepositoriesFileCount(env);
-        }
-        
-        return jsonResponse(result);
+         const session = await checkSession(request, env);
+         if (!session) { return jsonResponse({ error: '未授权访问' }, 401); }
+
+         // 利用正则提取仓库ID（例如，从"repositories/sync-file-count/2"中提取"2"）
+         const repoId = parseInt(path.match(/^repositories\/sync-file-count\/(\d+)$/)[1], 10);
+         if (isNaN(repoId)) { return jsonResponse({ error: '无效的仓库ID' }, 400); }
+
+         // 调用同步函数，传入解析出的仓库ID
+         const result = await syncRepositoryFileCount(env, repoId);
+         return jsonResponse(result);
       } catch (error) {
-        console.error('同步仓库文件计数失败:', error);
-        return jsonResponse({ 
-          success: false, 
-          error: '同步仓库文件计数失败', 
-          details: error.message 
-        }, 500);
+         console.error('同步仓库文件计数失败:', error);
+         return jsonResponse({ 
+           success: false, 
+           error: '同步仓库文件计数失败', 
+           details: error.message 
+         }, 500);
       }
     }
 
