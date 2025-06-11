@@ -1485,15 +1485,15 @@ export async function onRequest(context) {
               const githubResponse = await octokit.rest.repos.deleteFile({
                 owner: repositoryInfo.owner,
                 repo: repositoryInfo.repo,
-                path: image.github_path,
-                message: `Delete ${image.filename}`,
-                sha: image.sha,
-                branch: 'main'
-              });
+              path: image.github_path,
+              message: `Delete ${image.filename}`,
+              sha: image.sha,
+              branch: 'main'
+            });
 
               console.log('从GitHub删除图片成功:', githubResponse);
-            } catch (githubError) {
-              console.error('从GitHub删除图片失败:', githubError);
+          } catch (githubError) {
+            console.error('从GitHub删除图片失败:', githubError);
               
               // 检查是否是"文件不存在"错误
               const isNotFoundError = 
@@ -1518,8 +1518,8 @@ export async function onRequest(context) {
               
               // 如果是"文件不存在"错误，记录日志但继续处理
               console.log('GitHub上文件已不存在，继续删除数据库记录');
-            }
-            
+          }
+
             // 更新仓库大小估算和文件计数
             if (image.repository_id) {
               const sizeResult = await decreaseRepositorySizeEstimate(env, image.repository_id, image.size || 0);
@@ -1527,25 +1527,25 @@ export async function onRequest(context) {
             }
             
             // GitHub删除成功或文件不存在时，从数据库删除记录
-            await env.DB.prepare('DELETE FROM images WHERE id = ?').bind(imageId).run();
-            console.log('从数据库删除图片成功');
+          await env.DB.prepare('DELETE FROM images WHERE id = ?').bind(imageId).run();
+          console.log('从数据库删除图片成功');
 
-            // 触发Cloudflare Pages部署钩子
-            const deployResult = await triggerDeployHook(env);
-            if (deployResult.success) {
-              console.log('图片删除后部署已成功触发');
-            } else {
-              console.error('图片删除后部署失败:', deployResult.error);
-            }
+          // 触发Cloudflare Pages部署钩子
+          const deployResult = await triggerDeployHook(env);
+          if (deployResult.success) {
+            console.log('图片删除后部署已成功触发');
+          } else {
+            console.error('图片删除后部署失败:', deployResult.error);
+          }
 
             return new Response(JSON.stringify({ 
               success: true
             }), {
-              headers: {
-                'Content-Type': 'application/json',
-                ...corsHeaders
-              }
-            });
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
           } catch (error) {
             console.error('删除操作失败:', error);
             return new Response(JSON.stringify({ 
@@ -1692,6 +1692,17 @@ export async function onRequest(context) {
         // 跟踪每个仓库的删除文件大小总和
         const repositorySizeUpdates = {};
         
+        // 统计每个仓库实际删除的图片数量
+        const repositoryDeleteCount = {};
+        for (const image of images) {
+          if (image.repository_id) {
+            if (!repositoryDeleteCount[image.repository_id]) {
+              repositoryDeleteCount[image.repository_id] = 0;
+            }
+            repositoryDeleteCount[image.repository_id] += 1;
+          }
+        }
+        
         // 批量删除GitHub上的文件
         for (const image of images) {
           try {
@@ -1727,8 +1738,8 @@ export async function onRequest(context) {
             // 如果没有找到对应仓库，使用默认仓库信息
             if (!repositoryInfo) {
               repositoryInfo = {
-                owner: env.GITHUB_OWNER,
-                repo: env.GITHUB_REPO,
+              owner: env.GITHUB_OWNER,
+              repo: env.GITHUB_REPO,
                 token: env.GITHUB_TOKEN
               };
               console.log('使用默认仓库信息');
@@ -1748,11 +1759,11 @@ export async function onRequest(context) {
               await repoOctokit.rest.repos.deleteFile({
                 owner: repositoryInfo.owner,
                 repo: repositoryInfo.repo,
-                path: image.github_path,
+              path: image.github_path,
                 message: `Delete ${image.filename}`,
-                sha: image.sha,
-                branch: 'main'
-              });
+              sha: image.sha,
+              branch: 'main'
+            });
               
               console.log(`从GitHub删除图片成功: ${image.filename}`);
               githubDeleteSuccess = true;
@@ -1780,14 +1791,14 @@ export async function onRequest(context) {
                 }
                 repositorySizeUpdates[image.repository_id] += (image.size || 0);
               }
-              
-              // 从数据库删除记录
-              await env.DB.prepare(`
-                DELETE FROM images 
-                WHERE id = ?
-              `).bind(image.id).run();
-              
-              results.success.push(image.id);
+            
+            // 从数据库删除记录
+            await env.DB.prepare(`
+              DELETE FROM images 
+              WHERE id = ?
+            `).bind(image.id).run();
+            
+            results.success.push(image.id);
               console.log(`成功删除图片(GitHub和数据库): ${image.filename}`);
             }
           } catch (error) {
@@ -1802,7 +1813,8 @@ export async function onRequest(context) {
         // 更新每个受影响仓库的大小和文件计数
         for (const [repoId, sizeToDecrease] of Object.entries(repositorySizeUpdates)) {
           try {
-            const updateResult = await decreaseRepositorySizeEstimate(env, parseInt(repoId), sizeToDecrease);
+            const fileCountToDecrease = repositoryDeleteCount[repoId] || 1;
+            const updateResult = await decreaseRepositorySizeEstimate(env, parseInt(repoId), sizeToDecrease, fileCountToDecrease);
             results.repositoryUpdates[repoId] = updateResult;
           } catch (error) {
             console.error(`更新仓库 ${repoId} 大小失败:`, error);
