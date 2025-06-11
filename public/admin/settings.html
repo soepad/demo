@@ -102,7 +102,7 @@
                         <form id="repositorySettingsForm">
                             <div class="mb-3">
                                 <label for="repositorySizeThreshold" class="form-label">仓库大小阈值 (MB)</label>
-                                <input type="number" class="form-control" id="repositorySizeThreshold" name="repository_size_threshold" min="100" max="1000" step="1">
+                                <input type="number" class="form-control" id="repositorySizeThreshold" name="repository_size_threshold" min="100" max="1000" step="1" placeholder="输入阈值，如100MB">
                                 <div class="form-text">设置仓库大小阈值，达到此阈值后将自动切换到新仓库。建议不超过900MB，最大不能超过1GB。</div>
                             </div>
                             <div class="mb-3">
@@ -227,18 +227,20 @@
                 
                 const settings = data.data;
                 
-                // 填充仓库设置 - 显示原始值和换算的MB值
+                // 填充仓库设置 - 不设置默认值，让用户自己输入
                 if (settings.repository_size_threshold) {
                     const bytesValue = parseInt(settings.repository_size_threshold);
                     const mbValue = Math.round(bytesValue / (1024 * 1024));
                     
-                    alert(`仓库大小阈值: ${bytesValue} 字节 (${mbValue}MB)`);
+                    alert(`当前仓库大小阈值: ${bytesValue} 字节 (${mbValue}MB)`);
                     
-                    // 直接设置输入框值
-                    document.getElementById('repositorySizeThreshold').value = mbValue;
+                    // 清空输入框，不设置默认值
+                    document.getElementById('repositorySizeThreshold').value = '';
+                    document.getElementById('repositorySizeThreshold').placeholder = `当前值: ${mbValue}MB`;
                 } else {
-                    alert('未找到仓库大小阈值设置，将使用默认值900MB');
-                    document.getElementById('repositorySizeThreshold').value = 900;
+                    alert('未找到仓库大小阈值设置，请输入您需要的值');
+                    document.getElementById('repositorySizeThreshold').value = '';
+                    document.getElementById('repositorySizeThreshold').placeholder = '请输入阈值 (MB)';
                 }
                 
                 // 填充其他设置
