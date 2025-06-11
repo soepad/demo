@@ -1626,12 +1626,12 @@ export async function onRequest(context) {
         
         // 安全解析请求体
         let imageIds;
-        let skipDeploy = false; // 添加默认值
+        let skipDeploy = false;
         try {
           const requestBody = await request.json();
           console.log('解析请求体:', requestBody);
           imageIds = requestBody.imageIds;
-          skipDeploy = !!requestBody.skipDeploy; // 获取是否跳过部署的标志
+          skipDeploy = !!requestBody.skipDeploy;
           console.log('是否跳过部署:', skipDeploy);
         } catch (parseError) {
           console.error('解析请求体失败:', parseError);
@@ -1777,13 +1777,23 @@ export async function onRequest(context) {
         // 更新每个受影响仓库的大小和文件计数
         for (const [repoId, sizeToDecrease] of Object.entries(repositorySizeUpdates)) {
           try {
-            // 使用实际删除的文件数量，而不是批次数量
+            // 使用实际删除的文件数量
             const fileCountToDecrease = repositoryDeleteCount[repoId];
-            if (fileCountToDecrease === undefined) {
+            if (fileCountToDecrease === undefined || fileCountToDecrease === 0) {
+              console.log(`仓库 ${repoId} 没有成功删除的文件，跳过更新`);
               continue;
             }
+            
+            console.log(`更新仓库 ${repoId} 统计: 减少 ${fileCountToDecrease} 个文件, ${sizeToDecrease} 字节`);
+            
             // 直接传入实际删除的文件数量
-            const updateResult = await decreaseRepositorySizeEstimate(env, parseInt(repoId), sizeToDecrease, fileCountToDecrease);
+            const updateResult = await decreaseRepositorySizeEstimate(
+              env, 
+              parseInt(repoId), 
+              sizeToDecrease, 
+              fileCountToDecrease
+            );
+            
             results.repositoryUpdates[repoId] = updateResult;
           } catch (error) {
             results.repositoryUpdates[repoId] = { 
@@ -1793,31 +1803,25 @@ export async function onRequest(context) {
           }
         }
         
-        // 触发Cloudflare Pages部署钩子 - 仅在不跳过部署且有成功删除图片时触发
-        if (results.success.length > 0 && !skipDeploy) {
-          console.log(`所有删除操作已完成(成功: ${results.success.length}, 失败: ${results.failed.length})，现在触发部署`);
+        // 如果不是跳过部署，触发部署钩子
+        if (!skipDeploy) {
           const deployResult = await triggerDeployHook(env);
           if (deployResult.success) {
             console.log('批量删除后部署已成功触发');
           } else {
             console.error('批量删除后部署失败:', deployResult.error);
           }
-        } else if (skipDeploy) {
-          console.log(`跳过部署触发，等待更多批次处理完成`);
         }
-
+        
         return jsonResponse({
           success: true,
-          message: `成功删除 ${results.success.length} 张图片，失败 ${results.failed.length} 张`,
           results
         });
       } catch (error) {
-        console.error('批量删除图片时出错:', error);
-        return jsonResponse({
-          success: false,
-          error: '批量删除图片失败',
-          message: error.message,
-          stack: error.stack // 添加堆栈信息，帮助调试
+        console.error('批量删除失败:', error);
+        return jsonResponse({ 
+          error: '批量删除失败', 
+          details: error.message 
         }, 500);
       }
     }
