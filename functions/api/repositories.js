@@ -3,7 +3,9 @@ import {
   getActiveRepository, 
   getAllRepositories, 
   createNewRepository,
-  updateRepositorySizeEstimate
+  updateRepositorySizeEstimate,
+  syncRepositoryFileCount,
+  syncAllRepositoriesFileCount
 } from './repository-manager.js';
 
 // CORS头
@@ -201,6 +203,75 @@ export async function onRequest(context) {
       return new Response(JSON.stringify({
         success: false,
         error: '获取仓库列表失败: ' + error.message
+      }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      });
+    }
+  }
+  
+  // 同步仓库文件计数
+  if (path.startsWith('/sync-file-count/') && request.method === 'POST') {
+    try {
+      const repoId = parseInt(path.replace('/sync-file-count/', ''));
+      
+      if (isNaN(repoId)) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: '无效的仓库ID'
+        }), {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
+      
+      console.log(`同步仓库(ID: ${repoId})的文件计数`);
+      const result = await syncRepositoryFileCount(env, repoId);
+      
+      return new Response(JSON.stringify(result), {
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      });
+    } catch (error) {
+      console.error('同步仓库文件计数失败:', error);
+      return new Response(JSON.stringify({
+        success: false,
+        error: '同步仓库文件计数失败: ' + error.message
+      }), {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      });
+    }
+  }
+  
+  // 同步所有仓库文件计数
+  if (path === '/sync-all-file-counts' && request.method === 'POST') {
+    try {
+      console.log('同步所有仓库的文件计数');
+      const result = await syncAllRepositoriesFileCount(env);
+      
+      return new Response(JSON.stringify(result), {
+        headers: {
+          'Content-Type': 'application/json',
+          ...corsHeaders
+        }
+      });
+    } catch (error) {
+      console.error('同步所有仓库文件计数失败:', error);
+      return new Response(JSON.stringify({
+        success: false,
+        error: '同步所有仓库文件计数失败: ' + error.message
       }), {
         status: 500,
         headers: {
