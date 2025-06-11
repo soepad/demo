@@ -46,12 +46,18 @@ async function checkAdminAuth(request, env) {
  */
 async function getAllSettings(env) {
   try {
+    console.log('正在获取所有设置...');
     const settings = await env.DB.prepare('SELECT * FROM settings').all();
+    console.log('数据库返回的设置:', settings);
+    
     const settingsMap = {};
     
     for (const setting of settings.results) {
       settingsMap[setting.key] = setting.value;
     }
+    
+    console.log('转换后的设置映射:', settingsMap);
+    console.log('仓库大小阈值设置:', settingsMap['repository_size_threshold']);
     
     return settingsMap;
   } catch (error) {
