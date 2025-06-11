@@ -146,6 +146,7 @@
         // 加载设置
         async function loadSettings() {
             try {
+                console.log('开始加载设置...');
                 const response = await fetch('/api/settings');
                 if (!response.ok) {
                     throw new Error('Failed to fetch settings');
@@ -156,7 +157,12 @@
                     throw new Error(data.error || 'Unknown error');
                 }
                 
+                console.log('获取到设置数据:', data);
                 const settings = data.data;
+                
+                // 输出所有设置
+                console.log('所有设置:', settings);
+                console.log('仓库大小阈值设置:', settings.repository_size_threshold);
                 
                 // 填充基本设置
                 document.getElementById('siteName').value = settings.site_name || '';
