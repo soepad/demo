@@ -644,16 +644,30 @@ export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize
  */
 export async function syncRepositoryFileCount(env, repositoryId) {
   try {
+    console.log(`开始同步仓库 ID: ${repositoryId} 的文件数量`);
+    
+    // 确保仓库存在
+    const repo = await env.DB.prepare(`
+      SELECT * FROM repositories WHERE id = ?
+    `).bind(repositoryId).first();
+    
+    if (!repo) {
+      console.error(`仓库 ID: ${repositoryId} 不存在`);
+      return { success: false, error: '仓库不存在' };
+    }
+    
     // 获取实际文件计数
     const countResult = await env.DB.prepare(`
       SELECT COUNT(*) as file_count FROM images WHERE repository_id = ?
     `).bind(repositoryId).first();
     
     if (!countResult) {
+      console.error(`无法获取仓库 ID: ${repositoryId} 的文件计数`);
       return { success: false, error: '无法获取文件计数' };
     }
     
     const actualFileCount = countResult.file_count || 0;
+    console.log(`仓库 ${repo.name} (ID: ${repositoryId}) 实际文件数量: ${actualFileCount}`);
     
     // 更新仓库的文件计数
     await env.DB.prepare(`
@@ -662,15 +676,16 @@ export async function syncRepositoryFileCount(env, repositoryId) {
       WHERE id = ?
     `).bind(actualFileCount, repositoryId).run();
     
-    console.log(`仓库 ID: ${repositoryId} 的文件计数已同步: ${actualFileCount}`);
+    console.log(`仓库 ${repo.name} (ID: ${repositoryId}) 的文件计数已同步: ${actualFileCount}`);
     
     return { 
       success: true,
       file_count: actualFileCount,
-      repository_id: repositoryId
+      repository_id: repositoryId,
+      repository_name: repo.name
     };
   } catch (error) {
-    console.error('同步仓库文件计数失败:', error);
+    console.error(`同步仓库 ID: ${repositoryId} 文件计数失败:`, error);
     return { success: false, error: error.message };
   }
 }
