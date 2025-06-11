@@ -506,9 +506,12 @@ export async function updateRepositorySizeEstimate(env, repositoryId, fileSize) 
       SELECT value FROM settings WHERE key = 'repository_size_threshold'
     `).first();
     
-    const repoSizeThreshold = thresholdSetting ? 
+    // 确保解析为整数，使用默认值900MB如果没有设置
+    const repoSizeThreshold = thresholdSetting && !isNaN(parseInt(thresholdSetting.value)) ? 
       parseInt(thresholdSetting.value) : 
       900 * 1024 * 1024; // 默认900MB
+    
+    console.log(`使用仓库大小阈值: ${repoSizeThreshold} 字节 (${Math.round(repoSizeThreshold / (1024 * 1024))}MB)`);
     
     // 获取更新后的仓库信息
     const repo = await env.DB.prepare(`
@@ -519,7 +522,7 @@ export async function updateRepositorySizeEstimate(env, repositoryId, fileSize) 
     
     // 如果达到或超过阈值，更新状态为不活跃
     if (repo && repo.size_estimate >= repoSizeThreshold && repo.status === 'active') {
-      console.log(`仓库 ${repo.name} 已达到大小阈值，状态更新为 'inactive'`);
+      console.log(`仓库 ${repo.name} 已达到大小阈值 ${Math.round(repoSizeThreshold / (1024 * 1024))}MB，状态更新为 'inactive'`);
       
       // 更新当前仓库状态为不活跃
       await env.DB.prepare(`
@@ -602,9 +605,12 @@ export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize
       SELECT value FROM settings WHERE key = 'repository_size_threshold'
     `).first();
     
-    const repoSizeThreshold = thresholdSetting ? 
+    // 确保解析为整数，使用默认值900MB如果没有设置
+    const repoSizeThreshold = thresholdSetting && !isNaN(parseInt(thresholdSetting.value)) ? 
       parseInt(thresholdSetting.value) : 
       900 * 1024 * 1024; // 默认900MB
+    
+    console.log(`使用仓库大小阈值: ${repoSizeThreshold} 字节 (${Math.round(repoSizeThreshold / (1024 * 1024))}MB)`);
     
     // 如果仓库之前是不活跃的，但现在大小低于阈值，更新为活跃
     if (repo.status === 'inactive' && newSize < repoSizeThreshold * 0.9) {
