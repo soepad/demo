@@ -970,9 +970,51 @@ function initRepositoryManagement() {
         card.className = 'repo-card';
         card.dataset.repoId = repo.id;
         
+        // 从设置中获取仓库大小阈值
+        const fetchThreshold = async () => {
+            try {
+                const settingsResponse = await safeApiCall('/api/settings');
+                if (settingsResponse.error) {
+                    throw new Error(settingsResponse.error);
+                }
+                
+                const settings = settingsResponse.data || {};
+                // 解析阈值，默认900MB
+                let thresholdBytes = 900 * 1024 * 1024;
+                if (settings.repository_size_threshold) {
+                    thresholdBytes = parseInt(settings.repository_size_threshold);
+                }
+                
+                return thresholdBytes;
+            } catch (error) {
+                console.error('获取仓库阈值设置失败:', error);
+                return 900 * 1024 * 1024; // 默认900MB
+            }
+        };
+        
+        // 从API获取最新的文件数量
+        const fetchFileCount = async () => {
+            try {
+                const countResponse = await safeApiCall(`/api/repositories/sync-file-count/${repo.id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Cache-Control': 'no-cache, no-store, must-revalidate'
+                    }
+                });
+                
+                if (countResponse.error) {
+                    throw new Error(countResponse.error);
+                }
+                
+                return countResponse.file_count || 0;
+            } catch (error) {
+                console.error(`获取仓库 ${repo.id} 文件数量失败:`, error);
+                return repo.file_count || 0;
+            }
+        };
+        
+        // 初始渲染卡片
         const usedSizeMB = Math.round(repo.size_estimate / (1024 * 1024) * 100) / 100;
-        const maxSizeMB = Math.round(parseInt(repo.max_size || '943718400') / (1024 * 1024));
-        const usagePercent = Math.min(Math.round((repo.size_estimate / parseInt(repo.max_size || '943718400')) * 100), 100);
         
         // 确定仓库状态样式和文本
         let statusClass = 'inactive';
@@ -989,13 +1031,11 @@ function initRepositoryManagement() {
             statusText = '已满';
         }
         
-        // 确定使用率颜色
-        let usageFillClass = '';
-        if (usagePercent > 90) {
-            usageFillClass = 'danger';
-        } else if (usagePercent > 70) {
-            usageFillClass = 'warning';
-        }
+        // 设置初始渲染
+        const fileCountId = `file-count-${repo.id}`;
+        const maxSizeId = `max-size-${repo.id}`;
+        const usageBarId = `usage-bar-${repo.id}`;
+        const usageTextId = `usage-text-${repo.id}`;
         
         card.innerHTML = `
             <div class="repo-header">
@@ -1007,11 +1047,11 @@ function initRepositoryManagement() {
             <div class="repo-info">
                 <div class="info-item">
                     <i class="fas fa-file-image"></i>
-                    <span>${repo.file_count || 0} 个文件</span>
+                    <span><span id="${fileCountId}">加载中...</span> 个文件</span>
                 </div>
                 <div class="info-item">
                     <i class="fas fa-hdd"></i>
-                    <span>${usedSizeMB} MB / ${maxSizeMB} MB</span>
+                    <span>${usedSizeMB} MB / <span id="${maxSizeId}">加载中...</span></span>
                 </div>
                 <div class="info-item">
                     <i class="fas fa-calendar-alt"></i>
@@ -1019,8 +1059,8 @@ function initRepositoryManagement() {
                 </div>
             </div>
             <div class="repo-usage-bar">
-                <div class="usage-fill ${usageFillClass}" style="width: ${usagePercent}%"></div>
-                <span class="usage-text">${usagePercent}%</span>
+                <div id="${usageBarId}" class="usage-fill" style="width: 0%"></div>
+                <span id="${usageTextId}" class="usage-text">计算中...</span>
             </div>
             <div class="repo-actions">
                 <button class="btn btn-sm ${repo.status === 'active' ? 'btn-disabled' : 'btn-primary'}" ${repo.status === 'active' ? 'disabled' : ''} data-action="activate">
@@ -1029,12 +1069,16 @@ function initRepositoryManagement() {
                 <button class="btn btn-sm btn-secondary" data-action="details">
                     <i class="fas fa-info-circle"></i> 详情
                 </button>
+                <button class="btn btn-sm btn-info" data-action="sync-count">
+                    <i class="fas fa-sync"></i> 同步文件数
+                </button>
             </div>
         `;
         
         // 添加事件监听
         const activateBtn = card.querySelector('[data-action="activate"]');
         const detailsBtn = card.querySelector('[data-action="details"]');
+        const syncCountBtn = card.querySelector('[data-action="sync-count"]');
         
         if (activateBtn) {
             activateBtn.addEventListener('click', () => activateRepository(repo.id));
@@ -1043,6 +1087,72 @@ function initRepositoryManagement() {
         if (detailsBtn) {
             detailsBtn.addEventListener('click', () => showRepositoryDetails(repo));
         }
+        
+        if (syncCountBtn) {
+            syncCountBtn.addEventListener('click', async () => {
+                syncCountBtn.disabled = true;
+                syncCountBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 同步中...';
+                
+                try {
+                    const fileCount = await fetchFileCount();
+                    document.getElementById(fileCountId).textContent = fileCount;
+                    showToast(`文件数同步成功: ${fileCount}个文件`, 'success');
+                } catch (error) {
+                    showToast('同步文件数失败', 'error');
+                } finally {
+                    syncCountBtn.disabled = false;
+                    syncCountBtn.innerHTML = '<i class="fas fa-sync"></i> 同步文件数';
+                }
+            });
+        }
+        
+        // 异步加载真实数据
+        (async () => {
+            try {
+                // 同时获取文件数和阈值
+                const [fileCount, thresholdBytes] = await Promise.all([
+                    fetchFileCount(),
+                    fetchThreshold()
+                ]);
+                
+                // 更新文件数
+                const fileCountElement = document.getElementById(fileCountId);
+                if (fileCountElement) {
+                    fileCountElement.textContent = fileCount;
+                }
+                
+                // 更新最大大小显示
+                const maxSizeMB = Math.round(thresholdBytes / (1024 * 1024));
+                const maxSizeElement = document.getElementById(maxSizeId);
+                if (maxSizeElement) {
+                    maxSizeElement.textContent = `${maxSizeMB} MB`;
+                }
+                
+                // 更新使用率
+                const usagePercent = Math.min(Math.round((repo.size_estimate / thresholdBytes) * 100), 100);
+                const usageBarElement = document.getElementById(usageBarId);
+                const usageTextElement = document.getElementById(usageTextId);
+                
+                if (usageBarElement) {
+                    // 设置颜色样式
+                    let usageFillClass = '';
+                    if (usagePercent > 90) {
+                        usageFillClass = 'danger';
+                    } else if (usagePercent > 70) {
+                        usageFillClass = 'warning';
+                    }
+                    
+                    usageBarElement.className = `usage-fill ${usageFillClass}`;
+                    usageBarElement.style.width = `${usagePercent}%`;
+                }
+                
+                if (usageTextElement) {
+                    usageTextElement.textContent = `${usagePercent}%`;
+                }
+            } catch (error) {
+                console.error('异步更新仓库卡片数据失败:', error);
+            }
+        })();
         
         return card;
     }
