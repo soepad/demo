@@ -1695,29 +1695,7 @@ export async function onRequest(context) {
         // 统计每个仓库实际成功删除的图片数量
         const repositoryDeleteCount = {};
 
-       // 删除图片主循环
-       for (const image of images) {
-         try {
-           // ...你的删除逻辑...
-           if (githubDeleteSuccess) {
-             // 删除成功，计数
-             if (image.repository_id) {
-              if (!repositoryDeleteCount[image.repository_id]) { repositoryDeleteCount[image.repository_id] = 0; }
-              repositoryDeleteCount[image.repository_id] += 1;
-            }
-          }
-         } catch (error) {
-            // ...错误处理...
-         }
-       }
-
-        // 删除完后，统一更新每个仓库的 file_count
-        for (const [repoId, count] of Object.entries(repositoryDeleteCount)) {
-          // 你还可以统计总大小
-          await decreaseRepositorySizeEstimate(env, parseInt(repoId), 总大小, count);
-        }
-        
-        // 批量删除GitHub上的文件
+        // 删除图片主循环
         for (const image of images) {
           try {
             console.log(`正在处理图片: ${image.filename}, path=${image.github_path}, repository_id=${image.repository_id || '默认'}`);
@@ -1752,71 +1730,37 @@ export async function onRequest(context) {
             // 如果没有找到对应仓库，使用默认仓库信息
             if (!repositoryInfo) {
               repositoryInfo = {
-              owner: env.GITHUB_OWNER,
-              repo: env.GITHUB_REPO,
+                owner: env.GITHUB_OWNER,
+                repo: env.GITHUB_REPO,
                 token: env.GITHUB_TOKEN
               };
               console.log('使用默认仓库信息');
             }
-            
-            // 为每个仓库创建对应的Octokit实例
-            const repoOctokit = new Octokit({
-              auth: repositoryInfo.token
-            });
-            
-            let githubDeleteSuccess = false;
-            
-            // 先尝试从GitHub仓库删除文件
-            try {
-              console.log(`尝试从仓库删除: owner=${repositoryInfo.owner}, repo=${repositoryInfo.repo}, path=${image.github_path}`);
-              
-              await repoOctokit.rest.repos.deleteFile({
-                owner: repositoryInfo.owner,
-                repo: repositoryInfo.repo,
-              path: image.github_path,
-                message: `Delete ${image.filename}`,
-              sha: image.sha,
-              branch: 'main'
-            });
-              
-              console.log(`从GitHub删除图片成功: ${image.filename}`);
-              githubDeleteSuccess = true;
-            } catch (githubError) {
-              // 检查是否是"文件不存在"错误
-              const isNotFoundError = 
-                githubError.message?.includes('Not Found') || 
-                githubError.status === 404 ||
-                (githubError.response && githubError.response.status === 404);
-                
-              if (isNotFoundError) {
-                console.log(`GitHub上文件 ${image.filename} 已不存在，继续处理`);
-                githubDeleteSuccess = true; // 视为删除成功
-              } else {
-                console.error(`从GitHub删除文件失败:`, githubError);
-                throw githubError; // 重新抛出其他类型的错误
-              }
-            }
+
+            // 从GitHub删除文件
+            const githubDeleteSuccess = await deleteImageFromGithub(env, image, repositoryInfo);
             
             if (githubDeleteSuccess) {
-              // 累计每个仓库的删除大小
-              if (image.repository_id && image.size) {
+              // 累计每个仓库的删除大小和文件数
+              if (image.repository_id) {
                 if (!repositorySizeUpdates[image.repository_id]) {
                   repositorySizeUpdates[image.repository_id] = 0;
                 }
+                if (!repositoryDeleteCount[image.repository_id]) {
+                  repositoryDeleteCount[image.repository_id] = 0;
+                }
                 repositorySizeUpdates[image.repository_id] += (image.size || 0);
-              }
-            
-            // 从数据库删除记录
-            await env.DB.prepare(`
-              DELETE FROM images 
-              WHERE id = ?
-            `).bind(image.id).run();
-            
-            results.success.push(image.id);
-              console.log(`成功删除图片(GitHub和数据库): ${image.filename}`);
-              if (image.repository_id) {
                 repositoryDeleteCount[image.repository_id] += 1;
               }
+            
+              // 从数据库删除记录
+              await env.DB.prepare(`
+                DELETE FROM images 
+                WHERE id = ?
+              `).bind(image.id).run();
+              
+              results.success.push(image.id);
+              console.log(`成功删除图片(GitHub和数据库): ${image.filename}`);
             }
           } catch (error) {
             console.error(`删除图片 ${image.id} 失败:`, error);
@@ -1830,7 +1774,8 @@ export async function onRequest(context) {
         // 更新每个受影响仓库的大小和文件计数
         for (const [repoId, sizeToDecrease] of Object.entries(repositorySizeUpdates)) {
           try {
-            const fileCountToDecrease = repositoryDeleteCount[repoId] || 1;
+            const fileCountToDecrease = repositoryDeleteCount[repoId] || 0;
+            console.log(`更新仓库 ${repoId} 大小: -${sizeToDecrease} 字节, 文件数: -${fileCountToDecrease}`);
             const updateResult = await decreaseRepositorySizeEstimate(env, parseInt(repoId), sizeToDecrease, fileCountToDecrease);
             results.repositoryUpdates[repoId] = updateResult;
           } catch (error) {
