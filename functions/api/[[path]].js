@@ -1754,9 +1754,6 @@ export async function onRequest(context) {
           }
         }
 
-        // 等待一小段时间，确保所有删除操作都完成
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
         // 同步所有受影响的仓库的统计信息
         console.log('开始同步受影响的仓库统计信息:', Array.from(affectedRepositories));
         for (const repoId of affectedRepositories) {
