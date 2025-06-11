@@ -1702,9 +1702,7 @@ export async function onRequest(context) {
            if (githubDeleteSuccess) {
              // 删除成功，计数
              if (image.repository_id) {
-              if (!repositoryDeleteCount[image.repository_id]) {
-                repositoryDeleteCount[image.repository_id] = 0;
-              }
+              if (!repositoryDeleteCount[image.repository_id]) { repositoryDeleteCount[image.repository_id] = 0; }
               repositoryDeleteCount[image.repository_id] += 1;
             }
           }
@@ -1877,23 +1875,23 @@ export async function onRequest(context) {
     if (path.match(/^repositories\/sync-file-count\/(\d+)$/) && request.method === 'POST') {
       try {
         // 检查用户会话
-         const session = await checkSession(request, env);
-         if (!session) { return jsonResponse({ error: '未授权访问' }, 401); }
+        const session = await checkSession(request, env);
+        if (!session) { return jsonResponse({ error: '未授权访问' }, 401); }
 
-         // 利用正则提取仓库ID（例如，从"repositories/sync-file-count/2"中提取"2"）
-         const repoId = parseInt(path.match(/^repositories\/sync-file-count\/(\d+)$/)[1], 10);
-         if (isNaN(repoId)) { return jsonResponse({ error: '无效的仓库ID' }, 400); }
+        // 利用正则提取仓库ID（例如，从"repositories/sync-file-count/2"中提取"2"）
+        const repoId = parseInt(path.match(/^repositories\/sync-file-count\/(\d+)$/)[1], 10);
+        if (isNaN(repoId)) { return jsonResponse({ error: '无效的仓库ID' }, 400); }
 
-         // 调用同步函数，传入解析出的仓库ID
-         const result = await syncRepositoryFileCount(env, repoId);
-         return jsonResponse(result);
+        // 调用同步函数，传入解析出的仓库ID
+        const result = await syncRepositoryFileCount(env, repoId);
+        return jsonResponse(result);
       } catch (error) {
-         console.error('同步仓库文件计数失败:', error);
-         return jsonResponse({ 
-           success: false, 
-           error: '同步仓库文件计数失败', 
-           details: error.message 
-         }, 500);
+        console.error('同步仓库文件计数失败:', error);
+        return jsonResponse({ 
+          success: false, 
+          error: '同步仓库文件计数失败', 
+          details: error.message 
+        }, 500);
       }
     }
 
