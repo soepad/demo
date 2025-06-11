@@ -967,26 +967,30 @@ function initRepositoryManagement() {
     
     // 创建仓库卡片
     function createRepositoryCard(repo) {
-        return `
-            <div class="repo-card" data-repo-id="${repo.id}">
-                <div class="repo-header">
-                    <h3>${repo.name}</h3>
-                    <div class="repo-actions">
-                        <button class="btn btn-sm btn-primary" onclick="editRepository(${repo.id})">
-                            <i class="fas fa-edit"></i> 编辑
-                        </button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteRepository(${repo.id})">
-                            <i class="fas fa-trash"></i> 删除
-                        </button>
-                    </div>
-                </div>
-                <div class="repo-info">
-                    <p><i class="fas fa-file"></i> ${repo.file_count || 0} 个文件</p>
-                    <p><i class="fas fa-hdd"></i> ${formatSize(repo.size_estimate || 0)} / ${formatSize(repo.size_limit || 100 * 1024 * 1024)}</p>
-                    <p><i class="fas fa-clock"></i> 创建于 ${formatDate(repo.created_at)}</p>
+        const card = document.createElement('div');
+        card.className = 'repo-card';
+        card.dataset.repoId = repo.id;
+        
+        card.innerHTML = `
+            <div class="repo-header">
+                <h3>${repo.name}</h3>
+                <div class="repo-actions">
+                    <button class="btn btn-sm btn-primary" onclick="editRepository(${repo.id})">
+                        <i class="fas fa-edit"></i> 编辑
+                    </button>
+                    <button class="btn btn-sm btn-danger" onclick="deleteRepository(${repo.id})">
+                        <i class="fas fa-trash"></i> 删除
+                    </button>
                 </div>
             </div>
+            <div class="repo-info">
+                <p><i class="fas fa-file"></i> ${repo.file_count || 0} 个文件</p>
+                <p><i class="fas fa-hdd"></i> ${formatSize(repo.size_estimate || 0)} / ${formatSize(repo.size_limit || 100 * 1024 * 1024)}</p>
+                <p><i class="fas fa-clock"></i> 创建于 ${formatDate(repo.created_at)}</p>
+            </div>
         `;
+        
+        return card;
     }
     
     // 激活仓库
