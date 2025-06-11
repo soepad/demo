@@ -84,8 +84,16 @@ async function updateSettings(env, settings) {
       
       // 特殊处理仓库大小阈值
       if (key === 'repository_size_threshold') {
+        // 确保值是字符串
         const thresholdValue = value.toString();
+        // 确保值可以解析为整数
         const thresholdBytes = parseInt(thresholdValue);
+        
+        if (isNaN(thresholdBytes)) {
+          console.error(`无效的仓库大小阈值: ${thresholdValue}`);
+          continue;
+        }
+        
         const thresholdMB = Math.round(thresholdBytes / (1024 * 1024));
         
         console.log(`仓库大小阈值将被设置为: ${thresholdBytes} 字节 (${thresholdMB}MB)`);
@@ -95,7 +103,7 @@ async function updateSettings(env, settings) {
           env.DB.prepare(`
             INSERT OR REPLACE INTO settings (key, value, updated_at)
             VALUES (?, ?, CURRENT_TIMESTAMP)
-          `).bind(key, thresholdValue)
+          `).bind(key, thresholdBytes.toString())
         );
         
         // 添加一条日志记录，用于验证
@@ -126,7 +134,13 @@ async function updateSettings(env, settings) {
         SELECT value FROM settings WHERE key = 'repository_size_threshold'
       `).first();
       
-      console.log('验证更新后的仓库大小阈值:', verify?.value);
+      if (verify) {
+        const verifyBytes = parseInt(verify.value);
+        const verifyMB = Math.round(verifyBytes / (1024 * 1024));
+        console.log(`验证更新后的仓库大小阈值: ${verifyBytes} 字节 (${verifyMB}MB)`);
+      } else {
+        console.error('验证失败: 未找到仓库大小阈值设置');
+      }
     }
     
   } catch (error) {
