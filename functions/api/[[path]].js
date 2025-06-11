@@ -1654,11 +1654,6 @@ export async function onRequest(context) {
           repositoryUpdates: {}
         };
         
-        // 使用GitHub API删除文件
-        const octokit = new Octokit({
-          auth: env.GITHUB_TOKEN
-        });
-        
         // 先获取所有要删除的图片信息
         const images = [];
         for (const id of imageIds) {
@@ -1743,23 +1738,6 @@ export async function onRequest(context) {
             const githubDeleteSuccess = await deleteImageFromGithub(env, image, repositoryInfo);
             
             if (githubDeleteSuccess) {
-              // 累计每个仓库的删除大小和文件数
-              if (image.repository_id) {
-                // 初始化计数器（如果还没有）
-                if (!repositorySizeUpdates[image.repository_id]) {
-                  repositorySizeUpdates[image.repository_id] = 0;
-                }
-                if (!repositoryDeleteCount[image.repository_id]) {
-                  repositoryDeleteCount[image.repository_id] = 0;
-                }
-                
-                // 累加大小和计数
-                repositorySizeUpdates[image.repository_id] += (image.size || 0);
-                repositoryDeleteCount[image.repository_id] += 1;
-                
-                console.log(`仓库 ${image.repository_id} 当前删除统计: ${repositoryDeleteCount[image.repository_id]} 个文件, ${repositorySizeUpdates[image.repository_id]} 字节`);
-              }
-            
               // 从数据库删除记录
               await env.DB.prepare(`
                 DELETE FROM images 
