@@ -3,6 +3,10 @@ import bcrypt from 'bcryptjs';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { HTTPException } from 'hono/http-exception';
+import { 
+  decreaseRepositorySizeEstimate,
+  syncRepositoryFileCount
+} from './repository-manager.js';
 
 // CORS头
 const corsHeaders = {
@@ -1467,7 +1471,7 @@ export async function onRequest(context) {
             };
             console.log('使用默认仓库信息');
           }
-          
+
           // 从GitHub删除图片
           try {
             const octokit = new Octokit({
@@ -1514,6 +1518,12 @@ export async function onRequest(context) {
               
               // 如果是"文件不存在"错误，记录日志但继续处理
               console.log('GitHub上文件已不存在，继续删除数据库记录');
+            }
+            
+            // 更新仓库大小估算和文件计数
+            if (image.repository_id) {
+              const sizeResult = await decreaseRepositorySizeEstimate(env, image.repository_id, image.size || 0);
+              console.log('更新仓库大小和文件计数结果:', sizeResult);
             }
             
             // GitHub删除成功或文件不存在时，从数据库删除记录
@@ -1640,7 +1650,8 @@ export async function onRequest(context) {
         // 初始化结果计数
         const results = {
           success: [],
-          failed: []
+          failed: [],
+          repositoryUpdates: {}
         };
         
         // 使用GitHub API删除文件
@@ -1653,7 +1664,7 @@ export async function onRequest(context) {
         for (const id of imageIds) {
           try {
             const image = await env.DB.prepare(`
-              SELECT id, filename, github_path, sha, repository_id
+              SELECT id, filename, github_path, sha, repository_id, size
               FROM images 
               WHERE id = ?
             `).bind(id).first();
@@ -1678,6 +1689,9 @@ export async function onRequest(context) {
         // 对每个仓库的认证信息进行缓存
         const repositoryCache = new Map();
         
+        // 跟踪每个仓库的删除文件大小总和
+        const repositorySizeUpdates = {};
+        
         // 批量删除GitHub上的文件
         for (const image of images) {
           try {
@@ -1700,7 +1714,8 @@ export async function onRequest(context) {
                   repositoryInfo = {
                     owner: repository.owner || env.GITHUB_OWNER,
                     repo: repository.name,
-                    token: repository.token || env.GITHUB_TOKEN
+                    token: repository.token || env.GITHUB_TOKEN,
+                    id: repository.id
                   };
                   // 缓存仓库信息
                   repositoryCache.set(image.repository_id, repositoryInfo);
@@ -1758,6 +1773,14 @@ export async function onRequest(context) {
             }
             
             if (githubDeleteSuccess) {
+              // 累计每个仓库的删除大小
+              if (image.repository_id && image.size) {
+                if (!repositorySizeUpdates[image.repository_id]) {
+                  repositorySizeUpdates[image.repository_id] = 0;
+                }
+                repositorySizeUpdates[image.repository_id] += (image.size || 0);
+              }
+              
               // 从数据库删除记录
               await env.DB.prepare(`
                 DELETE FROM images 
@@ -1773,6 +1796,20 @@ export async function onRequest(context) {
               id: image.id,
               error: error.message || '删除失败'
             });
+          }
+        }
+        
+        // 更新每个受影响仓库的大小和文件计数
+        for (const [repoId, sizeToDecrease] of Object.entries(repositorySizeUpdates)) {
+          try {
+            const updateResult = await decreaseRepositorySizeEstimate(env, parseInt(repoId), sizeToDecrease);
+            results.repositoryUpdates[repoId] = updateResult;
+          } catch (error) {
+            console.error(`更新仓库 ${repoId} 大小失败:`, error);
+            results.repositoryUpdates[repoId] = { 
+              error: error.message, 
+              updated: false 
+            };
           }
         }
         
@@ -1801,6 +1838,39 @@ export async function onRequest(context) {
           error: '批量删除图片失败',
           message: error.message,
           stack: error.stack // 添加堆栈信息，帮助调试
+        }, 500);
+      }
+    }
+
+    // 同步仓库文件计数
+    if (path === 'repositories/sync-file-count' && request.method === 'POST') {
+      try {
+        // 检查用户会话
+        const session = await checkSession(request, env);
+        if (!session) {
+          return jsonResponse({ error: '未授权访问' }, 401);
+        }
+        
+        // 解析请求数据
+        const data = await request.json();
+        const { repository_id } = data;
+        
+        let result;
+        if (repository_id) {
+          // 同步特定仓库
+          result = await syncRepositoryFileCount(env, repository_id);
+        } else {
+          // 同步所有仓库
+          result = await syncAllRepositoriesFileCount(env);
+        }
+        
+        return jsonResponse(result);
+      } catch (error) {
+        console.error('同步仓库文件计数失败:', error);
+        return jsonResponse({ 
+          success: false, 
+          error: '同步仓库文件计数失败', 
+          details: error.message 
         }, 500);
       }
     }
