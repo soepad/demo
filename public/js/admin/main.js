@@ -916,52 +916,33 @@ function initRepositoryManagement() {
     // 加载仓库列表
     async function loadRepositories() {
         try {
-            repoGrid.innerHTML = `
-                <div class="loading-indicator">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <span>正在加载仓库列表...</span>
-                </div>
-            `;
-            
+            // 获取仓库列表
             const response = await safeApiCall('/api/repositories');
-            
             if (response.error) {
                 throw new Error(response.error);
             }
-            
-            const repositories = response.data || [];
-            
-            if (repositories.length === 0) {
-                repoGrid.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-database"></i>
-                        <p>暂无仓库</p>
-                        <p>请点击上方的"创建新仓库"按钮创建第一个仓库</p>
-                    </div>
-                `;
-                return;
+
+            // 获取阈值设置
+            const settingsResponse = await safeApiCall('/api/settings');
+            if (settingsResponse.error) {
+                throw new Error(settingsResponse.error);
             }
-            
-            // 渲染仓库列表
-            repoGrid.innerHTML = '';
-            repositories.forEach(repo => {
-                const repoCard = createRepositoryCard(repo);
-                repoGrid.appendChild(repoCard);
+
+            const threshold = settingsResponse.data?.repository_size_threshold 
+                ? parseInt(settingsResponse.data.repository_size_threshold) 
+                : null;
+
+            const container = document.getElementById('repositories-container');
+            if (!container) return;
+
+            container.innerHTML = '';
+            response.data.forEach(repo => {
+                repo.size_limit = threshold;
+                container.appendChild(createRepositoryCard(repo));
             });
         } catch (error) {
             console.error('加载仓库列表失败:', error);
-            repoGrid.innerHTML = `
-                <div class="error-state">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <p>加载仓库列表失败</p>
-                    <p class="error-message">${error.message}</p>
-                    <button class="btn btn-secondary" id="retryLoadReposBtn">
-                        <i class="fas fa-redo"></i> 重试
-                    </button>
-                </div>
-            `;
-            
-            document.getElementById('retryLoadReposBtn').addEventListener('click', loadRepositories);
+            showToast('加载仓库列表失败: ' + error.message, 'error');
         }
     }
     
@@ -974,18 +955,10 @@ function initRepositoryManagement() {
         card.innerHTML = `
             <div class="repo-header">
                 <h3>${repo.name}</h3>
-                <div class="repo-actions">
-                    <button class="btn btn-sm btn-primary" onclick="editRepository(${repo.id})">
-                        <i class="fas fa-edit"></i> 编辑
-                    </button>
-                    <button class="btn btn-sm btn-danger" onclick="deleteRepository(${repo.id})">
-                        <i class="fas fa-trash"></i> 删除
-                    </button>
-                </div>
             </div>
             <div class="repo-info">
                 <p><i class="fas fa-file"></i> ${repo.file_count || 0} 个文件</p>
-                <p><i class="fas fa-hdd"></i> ${formatSize(repo.size_estimate || 0)} / ${formatSize(repo.size_limit || 100 * 1024 * 1024)}</p>
+                <p><i class="fas fa-hdd"></i> ${formatSize(repo.size_estimate || 0)} / ${formatSize(repo.size_limit)}(阈值)</p>
                 <p><i class="fas fa-clock"></i> 创建于 ${formatDate(repo.created_at)}</p>
             </div>
         `;
