@@ -1695,6 +1695,12 @@ export async function onRequest(context) {
         // 统计每个仓库实际成功删除的图片数量
         const repositoryDeleteCount = {};
 
+        console.log('开始批量删除，图片列表:', images.map(img => ({
+          id: img.id,
+          filename: img.filename,
+          repository_id: img.repository_id
+        })));
+
         // 删除图片主循环
         for (const image of images) {
           try {
@@ -1707,6 +1713,7 @@ export async function onRequest(context) {
               // 检查缓存中是否有该仓库信息
               if (repositoryCache.has(image.repository_id)) {
                 repositoryInfo = repositoryCache.get(image.repository_id);
+                console.log(`使用缓存的仓库信息: ${repositoryInfo.repo} (ID: ${repositoryInfo.id})`);
               } else {
                 // 获取仓库信息
                 const repository = await env.DB.prepare(`
@@ -1723,6 +1730,8 @@ export async function onRequest(context) {
                   // 缓存仓库信息
                   repositoryCache.set(image.repository_id, repositoryInfo);
                   console.log(`获取到图片仓库信息: ${repository.name} (ID: ${repository.id})`);
+                } else {
+                  console.log(`警告: 找不到仓库ID ${image.repository_id} 的信息`);
                 }
               }
             }
@@ -1746,9 +1755,11 @@ export async function onRequest(context) {
                 // 初始化计数器（如果还没有）
                 if (!repositorySizeUpdates[image.repository_id]) {
                   repositorySizeUpdates[image.repository_id] = 0;
+                  console.log(`初始化仓库 ${image.repository_id} 的大小计数器`);
                 }
                 if (!repositoryDeleteCount[image.repository_id]) {
                   repositoryDeleteCount[image.repository_id] = 0;
+                  console.log(`初始化仓库 ${image.repository_id} 的文件计数`);
                 }
                 
                 // 累加大小和计数
@@ -1756,6 +1767,8 @@ export async function onRequest(context) {
                 repositoryDeleteCount[image.repository_id] += 1;
                 
                 console.log(`仓库 ${image.repository_id} 当前删除统计: 大小=${repositorySizeUpdates[image.repository_id]}, 文件数=${repositoryDeleteCount[image.repository_id]}`);
+              } else {
+                console.log('警告: 图片没有关联的仓库ID');
               }
             
               // 从数据库删除记录
@@ -1775,6 +1788,11 @@ export async function onRequest(context) {
             });
           }
         }
+        
+        console.log('删除完成，仓库统计:', {
+          sizeUpdates: repositorySizeUpdates,
+          deleteCount: repositoryDeleteCount
+        });
         
         // 更新每个受影响仓库的大小和文件计数
         for (const [repoId, sizeToDecrease] of Object.entries(repositorySizeUpdates)) {
