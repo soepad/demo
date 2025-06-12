@@ -903,238 +903,194 @@ function initImageManagement() {
 
 // 初始化仓库管理功能
 function initRepositoryManagement() {
-    console.log('初始化仓库管理');
     const createRepoBtn = document.getElementById('createRepoBtn');
-    const refreshReposBtn = document.getElementById('refreshReposBtn');
-    const repoGrid = document.getElementById('repoGrid');
-    
-    if (!repoGrid) {
-        console.error('未找到仓库网格元素');
-        return;
-    }
-    
-    // 加载仓库列表
-    async function loadRepositories() {
-        try {
-            repoGrid.innerHTML = `
-                <div class="loading-indicator">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <span>正在加载仓库列表...</span>
-                </div>
-            `;
-            
-            // 获取仓库列表
-            const response = await safeApiCall('/api/repositories');
-            if (response.error) {
-                throw new Error(response.error);
-            }
-
-            // 获取阈值设置
-            const settingsResponse = await safeApiCall('/api/settings');
-            if (settingsResponse.error) {
-                throw new Error(settingsResponse.error);
-            }
-
-            const threshold = settingsResponse.data?.repository_size_threshold 
-                ? parseInt(settingsResponse.data.repository_size_threshold) 
-                : null;
-
-            const repositories = response.data || [];
-            
-            if (repositories.length === 0) {
-                repoGrid.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fas fa-database"></i>
-                        <p>暂无仓库</p>
-                        <p>请点击上方的"创建新仓库"按钮创建第一个仓库</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            // 渲染仓库列表
-            repoGrid.innerHTML = '';
-            repositories.forEach(repo => {
-                repo.size_limit = threshold; // 设置阈值
-                const repoCard = createRepositoryCard(repo);
-                repoGrid.appendChild(repoCard);
-            });
-        } catch (error) {
-            console.error('加载仓库列表失败:', error);
-            repoGrid.innerHTML = `
-                <div class="error-state">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <p>加载仓库列表失败</p>
-                    <p class="error-message">${error.message}</p>
-                    <button class="btn btn-secondary" id="retryLoadReposBtn">
-                        <i class="fas fa-redo"></i> 重试
-                    </button>
-                </div>
-            `;
-            
-            document.getElementById('retryLoadReposBtn').addEventListener('click', loadRepositories);
-        }
-    }
-    
-    // 创建仓库卡片
-    function createRepositoryCard(repo) {
-        const card = document.createElement('div');
-        card.className = 'repo-card';
-        card.dataset.repoId = repo.id;
-        
-        card.innerHTML = `
-            <div class="repo-header">
-                <h3>${repo.name}</h3>
-            </div>
-            <div class="repo-info">
-                <p><i class="fas fa-file"></i> ${repo.file_count || 0} 个文件</p>
-                <p><i class="fas fa-hdd"></i> ${formatSize(repo.size_estimate || 0)} / ${formatSize(repo.size_limit || 0)}(阈值)</p>
-                <p><i class="fas fa-clock"></i> 创建于 ${formatDate(repo.created_at)}</p>
-            </div>
-        `;
-        
-        return card;
-    }
-    
-    // 激活仓库
-    async function activateRepository(repoId) {
-        try {
-            const loadingToast = showNotification('正在设置活跃仓库...', 'info', 0);
-            
-            const response = await safeApiCall(`/api/repositories/${repoId}/activate`, {
-                method: 'POST'
-            });
-            
-            // 关闭加载提示
-            document.body.removeChild(loadingToast);
-            
-            if (response.error) {
-                throw new Error(response.error);
-            }
-
-            showNotification('已成功设置活跃仓库', 'success');
-            loadRepositories(); // 重新加载仓库列表
-        } catch (error) {
-            console.error('设置活跃仓库失败:', error);
-            showNotification('设置活跃仓库失败: ' + error.message, 'error');
-        }
-    }
-    
-    // 显示仓库详情
-    function showRepositoryDetails(repo) {
-        // 创建模态框
-        const modal = document.createElement('div');
-        modal.className = 'modal';
-        
-        const usedSizeMB = Math.round(repo.size_estimate / (1024 * 1024) * 100) / 100;
-        const maxSizeMB = Math.round(parseInt(repo.max_size || '943718400') / (1024 * 1024));
-        const usagePercent = Math.min(Math.round((repo.size_estimate / parseInt(repo.max_size || '943718400')) * 100), 100);
-        
-        // 确定仓库状态样式和文本
-        let statusClass = 'inactive';
-        let statusText = '未使用';
-        
-        if (repo.status === 'active') {
-            statusClass = 'active';
-            statusText = '当前使用';
-        } else if (repo.status === 'inactive') {
-            statusClass = 'inactive';
-            statusText = '未使用';
-        } else if (repo.status === 'full') {
-            statusClass = 'full';
-            statusText = '已满';
-        }
-        
-        // 确定使用率颜色
-        let usageFillClass = '';
-        if (usagePercent > 90) {
-            usageFillClass = 'danger';
-        } else if (usagePercent > 70) {
-            usageFillClass = 'warning';
-        }
-        
-        modal.innerHTML = `
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h3>仓库详情: ${repo.name}</h3>
-                    <button class="close-btn">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="repo-details">
-                        <div class="detail-item">
-                            <strong>仓库ID:</strong> ${repo.id}
-                        </div>
-                        <div class="detail-item">
-                            <strong>状态:</strong> 
-                            <span class="repo-status ${statusClass}">
-                                ${statusText}
-                            </span>
-                        </div>
-                        <div class="detail-item">
-                            <strong>文件数量:</strong> ${repo.file_count || 0}
-                        </div>
-                        <div class="detail-item">
-                            <strong>使用空间:</strong> ${usedSizeMB} MB / ${maxSizeMB} MB (${usagePercent}%)
-                        </div>
-                        <div class="detail-item">
-                            <strong>创建时间:</strong> ${formatDate(repo.created_at)}
-                        </div>
-                        <div class="detail-item">
-                            <strong>最后更新:</strong> ${formatDate(repo.updated_at)}
-                        </div>
-                        <div class="detail-item">
-                            <strong>GitHub仓库:</strong> 
-                            <a href="${repo.html_url}" target="_blank">${repo.full_name || repo.name}</a>
-                        </div>
-                    </div>
-                    
-                    <div class="repo-usage-bar">
-                        <div class="usage-fill ${usageFillClass}" style="width: ${usagePercent}%"></div>
-                        <span class="usage-text">${usagePercent}%</span>
-                    </div>
-                    
-                    <div class="repo-actions">
-                        ${repo.status !== 'active' ? `
-                            <button class="btn btn-primary" id="activateRepoBtn">
-                                <i class="fas fa-check-circle"></i> 设为活跃仓库
-                            </button>
-                        ` : ''}
-                    </div>
-                </div>
-                    </div>
-                `;
-        
-        document.body.appendChild(modal);
-        
-        // 添加事件监听
-        const closeBtn = modal.querySelector('.close-btn');
-        closeBtn.addEventListener('click', () => {
-            document.body.removeChild(modal);
-        });
-        
-        const activateRepoBtn = modal.querySelector('#activateRepoBtn');
-        if (activateRepoBtn) {
-            activateRepoBtn.addEventListener('click', () => {
-                document.body.removeChild(modal);
-                activateRepository(repo.id);
-            });
-        }
-    }
-    
-    // 添加事件监听
     if (createRepoBtn) {
-        createRepoBtn.addEventListener('click', function() {
-            // 调用创建仓库函数
-            createRepository.call(this);
-        });
-    }
-    
-    if (refreshReposBtn) {
-        refreshReposBtn.addEventListener('click', loadRepositories);
+        createRepoBtn.addEventListener('click', showCreateRepositoryModal);
     }
     
     // 初始加载仓库列表
     loadRepositories();
+}
+
+// 加载仓库列表
+async function loadRepositories() {
+    try {
+        const response = await safeApiCall('/api/repositories');
+        if (response.error) {
+            throw new Error(response.error);
+        }
+        
+        const repositories = response.data;
+        const container = document.getElementById('repositoriesContainer');
+        if (!container) return;
+        
+        container.innerHTML = '';
+        
+        if (repositories.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                    <i class="fas fa-folder-open"></i>
+                    <p>暂无仓库</p>
+                    <button class="btn btn-primary" onclick="showCreateRepositoryModal()">
+                        <i class="fas fa-plus"></i> 创建仓库
+                    </button>
+                </div>
+            `;
+            return;
+        }
+        
+        repositories.forEach(repo => {
+            const card = createRepositoryCard(repo);
+            container.appendChild(card);
+        });
+    } catch (error) {
+        console.error('加载仓库列表失败:', error);
+        showNotification('加载仓库列表失败: ' + error.message, 'error');
+    }
+}
+
+function createRepositoryCard(repo) {
+    const card = document.createElement('div');
+    card.className = 'repo-card';
+    card.dataset.repoId = repo.id;
+    
+    card.innerHTML = `
+        <div class="repo-header">
+            <h3>${repo.name}</h3>
+        </div>
+        <div class="repo-info">
+            <p><i class="fas fa-file"></i> ${repo.file_count || 0} 个文件</p>
+            <p><i class="fas fa-hdd"></i> ${formatSize(repo.size_estimate || 0)} / ${formatSize(repo.size_limit || 0)}(阈值)</p>
+            <p><i class="fas fa-clock"></i> 创建于 ${formatDate(repo.created_at)}</p>
+        </div>
+    `;
+    
+    return card;
+}
+
+// 激活仓库
+async function activateRepository(repoId) {
+    try {
+        const loadingToast = showNotification('正在设置活跃仓库...', 'info', 0);
+        
+        const response = await safeApiCall(`/api/repositories/${repoId}/activate`, {
+            method: 'POST'
+        });
+        
+        // 关闭加载提示
+        document.body.removeChild(loadingToast);
+        
+        if (response.error) {
+            throw new Error(response.error);
+        }
+
+        showNotification('已成功设置活跃仓库', 'success');
+        loadRepositories(); // 重新加载仓库列表
+    } catch (error) {
+        console.error('设置活跃仓库失败:', error);
+        showNotification('设置活跃仓库失败: ' + error.message, 'error');
+    }
+}
+
+// 显示仓库详情
+function showRepositoryDetails(repo) {
+    // 创建模态框
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    
+    const usedSizeMB = Math.round(repo.size_estimate / (1024 * 1024) * 100) / 100;
+    const maxSizeMB = Math.round(parseInt(repo.max_size || '943718400') / (1024 * 1024));
+    const usagePercent = Math.min(Math.round((repo.size_estimate / parseInt(repo.max_size || '943718400')) * 100), 100);
+    
+    // 确定仓库状态样式和文本
+    let statusClass = 'inactive';
+    let statusText = '未使用';
+    
+    if (repo.status === 'active') {
+        statusClass = 'active';
+        statusText = '当前使用';
+    } else if (repo.status === 'inactive') {
+        statusClass = 'inactive';
+        statusText = '未使用';
+    } else if (repo.status === 'full') {
+        statusClass = 'full';
+        statusText = '已满';
+    }
+    
+    // 确定使用率颜色
+    let usageFillClass = '';
+    if (usagePercent > 90) {
+        usageFillClass = 'danger';
+    } else if (usagePercent > 70) {
+        usageFillClass = 'warning';
+    }
+    
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>仓库详情: ${repo.name}</h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="repo-details">
+                    <div class="detail-item">
+                        <strong>仓库ID:</strong> ${repo.id}
+                    </div>
+                    <div class="detail-item">
+                        <strong>状态:</strong> 
+                        <span class="repo-status ${statusClass}">
+                            ${statusText}
+                        </span>
+                    </div>
+                    <div class="detail-item">
+                        <strong>文件数量:</strong> ${repo.file_count || 0}
+                    </div>
+                    <div class="detail-item">
+                        <strong>使用空间:</strong> ${usedSizeMB} MB / ${maxSizeMB} MB (${usagePercent}%)
+                    </div>
+                    <div class="detail-item">
+                        <strong>创建时间:</strong> ${formatDate(repo.created_at)}
+                    </div>
+                    <div class="detail-item">
+                        <strong>最后更新:</strong> ${formatDate(repo.updated_at)}
+                    </div>
+                    <div class="detail-item">
+                        <strong>GitHub仓库:</strong> 
+                        <a href="${repo.html_url}" target="_blank">${repo.full_name || repo.name}</a>
+                    </div>
+                </div>
+                
+                <div class="repo-usage-bar">
+                    <div class="usage-fill ${usageFillClass}" style="width: ${usagePercent}%"></div>
+                    <span class="usage-text">${usagePercent}%</span>
+                </div>
+                
+                <div class="repo-actions">
+                    ${repo.status !== 'active' ? `
+                        <button class="btn btn-primary" id="activateRepoBtn">
+                            <i class="fas fa-check-circle"></i> 设为活跃仓库
+                        </button>
+                    ` : ''}
+                </div>
+            </div>
+                </div>
+            `;
+    
+    document.body.appendChild(modal);
+    
+    // 添加事件监听
+    const closeBtn = modal.querySelector('.close-btn');
+    closeBtn.addEventListener('click', () => {
+        document.body.removeChild(modal);
+    });
+    
+    const activateRepoBtn = modal.querySelector('#activateRepoBtn');
+    if (activateRepoBtn) {
+        activateRepoBtn.addEventListener('click', () => {
+            document.body.removeChild(modal);
+            activateRepository(repo.id);
+        });
+    }
 }
 
 // 初始化批量操作按钮
