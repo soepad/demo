@@ -238,7 +238,11 @@ class ChunkedUploader {
       // 处理成功的分块上传
       chunk.status = 'uploaded';
       chunk.uploadedAt = Date.now();
-      this.uploadedChunks.push(chunk.index);
+      
+      // 确保不会重复添加已上传的分块
+      if (!this.uploadedChunks.includes(chunk.index)) {
+        this.uploadedChunks.push(chunk.index);
+      }
       
       // 更新进度
       this._updateProgress();
@@ -278,17 +282,18 @@ class ChunkedUploader {
     // 计算已上传的分块数量
     const uploadedChunks = this.uploadedChunks.length;
     
-    // 计算进度百分比 - 使用已上传分块数量除以总分块数
-    const progress = (uploadedChunks / this.totalChunks) * 100;
-    this.progress = Math.min(progress, 100);
+    // 计算已上传的字节数
+    const uploadedSize = this.uploadedChunks.reduce((total, index) => {
+      return total + this.chunks[index].size;
+    }, 0);
+    
+    // 计算进度百分比 - 使用已上传字节数除以总文件大小
+    const progress = (uploadedSize / this.file.size) * 100;
+    this.progress = Math.min(100, Math.round(progress));
     
     // 计算上传速度
     const elapsedSeconds = (Date.now() - this.uploadStartTime) / 1000;
     if (elapsedSeconds > 0) {
-      const uploadedSize = this.uploadedChunks.reduce((total, index) => {
-        return total + this.chunks[index].size;
-      }, 0);
-      
       this.uploadSpeed = uploadedSize / elapsedSeconds;
       
       // 计算剩余时间
@@ -301,7 +306,7 @@ class ChunkedUploader {
     // 调用进度回调
     this.onProgress({
       progress: this.progress,
-      uploadedSize: this.uploadedChunks.reduce((total, index) => total + this.chunks[index].size, 0),
+      uploadedSize: uploadedSize,
       totalSize: this.file.size,
       speed: this.uploadSpeed,
       remainingTime: this.remainingTime
