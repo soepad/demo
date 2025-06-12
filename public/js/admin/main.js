@@ -1500,6 +1500,9 @@ async function batchDeleteImages() {
             
             showNotification(message, successCount > 0 ? 'success' : 'error');
             console.log('批量删除最终结果:', allResults);
+
+            // 重新加载仓库列表以更新文件数和大小
+            await loadRepositories();
             
         } catch (error) {
             console.error('批量删除图片失败:', error);
@@ -2892,7 +2895,6 @@ async function updateRepositoryFileCount(repoId) {
         console.error('更新仓库文件数失败:', error);
     }
 }
-
 
 // 格式化文件大小显示
 function formatSize(bytes) {
