@@ -77,8 +77,9 @@ class ChunkedUploader {
     // 是否跳过部署
     this.skipDeploy = options.skipDeploy || false;
     
-    // 确定API路径
-    this.apiPath = window.location.pathname.includes('/admin/') ? 'api/upload' : '/api/upload';
+    // 确定API路径 - 根据当前页面路径决定
+    const isAdmin = window.location.pathname.includes('/admin/');
+    this.apiPath = isAdmin ? '../api/upload' : '/api/upload';
     
     // 回调
     this.onProgress = options.onProgress || (() => {});
