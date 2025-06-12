@@ -258,60 +258,60 @@ export async function onRequest(context) {
         const beijingSecond = String(beijingTime.getUTCSeconds()).padStart(2, '0');
         const beijingTimeString = `${beijingYear}-${beijingMonth}-${beijingDay} ${beijingHour}:${beijingMinute}:${beijingSecond}`;
         
-        // 先检查文件是否已存在
+        // 检查文件是否已存在
         const existingFile = await env.DB.prepare(`
           SELECT id FROM images 
           WHERE filename = ? AND repository_id = ?
         `).bind(fileName, repository.id).first();
         
         if (existingFile) {
-          // 更新现有文件
-          await env.DB.prepare(`
-            UPDATE images 
-            SET size = ?, 
-                mime_type = ?, 
-                github_path = ?, 
-                sha = ?, 
-                updated_at = datetime(?)
-            WHERE id = ?
-          `).bind(
-            file.size,
-            file.type,
-            filePath,
-            response.data.content.sha,
-            beijingTimeString,
-            existingFile.id
-          ).run();
-        } else {
-          // 插入新文件
-          await env.DB.prepare(`
-            INSERT INTO images (
-              filename, 
-              size, 
-              mime_type, 
-              github_path, 
-              sha, 
-              created_at, 
-              updated_at, 
-              repository_id
-            )
-            VALUES (?, ?, ?, ?, ?, datetime(?), datetime(?), ?)
-          `).bind(
-            fileName,
-            file.size,
-            file.type,
-            filePath,
-            response.data.content.sha,
-            beijingTimeString,
-            beijingTimeString,
-            repository.id
-          ).run();
+          throw new Error(`文件 "${fileName}" 已存在，请重命名后重试`);
         }
+        
+        // 插入新文件
+        await env.DB.prepare(`
+          INSERT INTO images (
+            filename, 
+            size, 
+            mime_type, 
+            github_path, 
+            sha, 
+            created_at, 
+            updated_at, 
+            repository_id
+          )
+          VALUES (?, ?, ?, ?, ?, datetime(?), datetime(?), ?)
+        `).bind(
+          fileName,
+          file.size,
+          file.type,
+          filePath,
+          response.data.content.sha,
+          beijingTimeString,
+          beijingTimeString,
+          repository.id
+        ).run();
         
         console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeString}`);
       } catch (dbError) {
         console.error('数据库保存失败:', dbError);
-        // 继续执行，不因为数据库错误而中断响应
+        
+        // 如果是文件已存在的错误，返回409状态码
+        if (dbError.message && dbError.message.includes('已存在')) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: dbError.message,
+            details: 'File already exists'
+          }), {
+            status: 409,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+        
+        // 其他数据库错误，继续执行，不中断响应
       }
       
       // 只有在不跳过部署的情况下才触发部署钩子
@@ -735,60 +735,60 @@ export async function onRequest(context) {
           const beijingSecond = String(beijingTime.getUTCSeconds()).padStart(2, '0');
           const beijingTimeString = `${beijingYear}-${beijingMonth}-${beijingDay} ${beijingHour}:${beijingMinute}:${beijingSecond}`;
           
-          // 先检查文件是否已存在
+          // 检查文件是否已存在
           const existingFile = await env.DB.prepare(`
             SELECT id FROM images 
             WHERE filename = ? AND repository_id = ?
           `).bind(uploadFileName, repository.id).first();
           
           if (existingFile) {
-            // 更新现有文件
-            await env.DB.prepare(`
-              UPDATE images 
-              SET size = ?, 
-                  mime_type = ?, 
-                  github_path = ?, 
-                  sha = ?, 
-                  updated_at = datetime(?)
-              WHERE id = ?
-            `).bind(
-              session.fileSize,
-              session.mimeType,
-              filePath,
-              response.data.content.sha,
-              beijingTimeString,
-              existingFile.id
-            ).run();
-          } else {
-            // 插入新文件
-            await env.DB.prepare(`
-              INSERT INTO images (
-                filename, 
-                size, 
-                mime_type, 
-                github_path, 
-                sha, 
-                created_at, 
-                updated_at, 
-                repository_id
-              )
-              VALUES (?, ?, ?, ?, ?, datetime(?), datetime(?), ?)
-            `).bind(
-              uploadFileName,
-              session.fileSize,
-              session.mimeType,
-              filePath,
-              response.data.content.sha,
-              beijingTimeString,
-              beijingTimeString,
-              repository.id
-            ).run();
+            throw new Error(`文件 "${uploadFileName}" 已存在，请重命名后重试`);
           }
+          
+          // 插入新文件
+          await env.DB.prepare(`
+            INSERT INTO images (
+              filename, 
+              size, 
+              mime_type, 
+              github_path, 
+              sha, 
+              created_at, 
+              updated_at, 
+              repository_id
+            )
+            VALUES (?, ?, ?, ?, ?, datetime(?), datetime(?), ?)
+          `).bind(
+            uploadFileName,
+            session.fileSize,
+            session.mimeType,
+            filePath,
+            response.data.content.sha,
+            beijingTimeString,
+            beijingTimeString,
+            repository.id
+          ).run();
           
           console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeString}`);
         } catch (dbError) {
           console.error('数据库保存失败:', dbError);
-          // 继续执行，不因为数据库错误而中断响应
+          
+          // 如果是文件已存在的错误，返回409状态码
+          if (dbError.message && dbError.message.includes('已存在')) {
+            return new Response(JSON.stringify({
+              success: false,
+              error: dbError.message,
+              details: 'File already exists'
+            }), {
+              status: 409,
+              headers: {
+                'Content-Type': 'application/json',
+                ...corsHeaders
+              }
+            });
+          }
+          
+          // 其他数据库错误，继续执行，不中断响应
         }
         
         // 清理会话数据
