@@ -914,7 +914,7 @@ function initRepositoryManagement() {
 
 // 加载仓库列表
 async function loadRepositories() {
-    const container = document.getElementById('repositoriesContainer');
+    const container = document.getElementById('repoGrid');
     if (!container) {
         console.error('未找到仓库容器元素');
         return;
