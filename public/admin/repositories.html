@@ -243,159 +243,83 @@
         async function loadRepositories() {
             try {
                 const response = await fetch('/api/repositories');
-                if (!response.ok) {
-                    throw new Error('Failed to fetch repositories');
-                }
-                
                 const data = await response.json();
+                
                 if (!data.success) {
-                    throw new Error(data.error || 'Unknown error');
+                    throw new Error(data.error || '加载仓库列表失败');
                 }
                 
-                const repositories = data.data;
                 const container = document.getElementById('repositoriesContainer');
                 container.innerHTML = '';
                 
-                if (repositories.length === 0) {
-                    container.innerHTML = `
-                        <div class="col-12 text-center py-5">
-                            <i class="bi bi-inbox" style="font-size: 3rem;"></i>
-                            <p class="mt-2">暂无仓库记录</p>
-                            <button class="btn btn-primary" id="emptyCreateRepoBtn">
-                                <i class="bi bi-plus-circle"></i> 创建第一个仓库
-                            </button>
-                        </div>
-                    `;
-                    
-                    document.getElementById('emptyCreateRepoBtn').addEventListener('click', () => {
-                        const createRepoModal = new bootstrap.Modal(document.getElementById('createRepoModal'));
-                        createRepoModal.show();
-                    });
-                    
-                    return;
-                }
-                
-                // 获取阈值设置
-                const settingsResponse = await fetch('/api/settings', {
-                    cache: 'no-store',
-                    headers: {
-                        'Cache-Control': 'no-cache, no-store, must-revalidate',
-                        'Pragma': 'no-cache',
-                        'Expires': '0'
-                    }
-                });
-                const settingsData = await settingsResponse.json();
-                
-                // 确保我们有一个有效的阈值
-                let thresholdBytes;
-                if (settingsData.data && settingsData.data.repository_size_threshold) {
-                    thresholdBytes = parseInt(settingsData.data.repository_size_threshold);
-                    // 移除警告弹窗，仅在控制台输出
-                    console.log(`仓库页面获取的阈值: ${thresholdBytes} 字节 (${Math.round(thresholdBytes / (1024 * 1024))}MB)`);
-                } else {
-                    thresholdBytes = 900 * 1024 * 1024; // 默认900MB
-                    console.log('未找到仓库大小阈值设置，使用默认值900MB');
-                }
-                
-                console.log('仓库页面获取到的设置数据:', settingsData);
-                console.log('解析后的仓库大小阈值 (bytes):', thresholdBytes, '阈值 (MB):', Math.round(thresholdBytes / (1024 * 1024)));
-                
-                // 加载调试信息
-                loadDebugInfo();
-                
-                // 渲染仓库卡片
-                repositories.forEach(repo => {
-                    const usedPercentage = Math.round((repo.size_estimate / thresholdBytes) * 100);
-                    const progressClass = usedPercentage < 70 ? 'bg-success' : (usedPercentage < 90 ? 'bg-warning' : 'bg-danger');
-                    
-                    const statusBadgeClass = 
-                        repo.status === 'active' ? 'status-active' : 
-                        (repo.status === 'inactive' ? 'status-inactive' : 'status-full');
-                    
-                    const statusText = 
-                        repo.status === 'active' ? '活跃' : 
-                        (repo.status === 'inactive' ? '禁用' : '已满');
-                    
-                    // 计算阈值的MB表示
-                    const thresholdMB = Math.round(thresholdBytes / (1024 * 1024));
-                    
-                    // 生成唯一ID以便稍后更新
-                    const fileCountId = `card-file-count-${repo.id}`;
-                    
+                // 先创建所有仓库卡片
+                const cards = await Promise.all(data.data.map(async (repo) => {
                     const card = document.createElement('div');
-                    card.className = 'col-md-6 col-lg-4 mb-4';
+                    card.className = 'col-md-4 mb-4';
                     card.innerHTML = `
-                        <div class="card repository-card h-100">
+                        <div class="card h-100">
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <h5 class="mb-0">${repo.name}</h5>
-                                <span class="badge ${statusBadgeClass} status-badge">${statusText}</span>
+                                <span class="badge ${repo.status === 'active' ? 'bg-success' : 'bg-secondary'}">${repo.status}</span>
                             </div>
                             <div class="card-body">
-                                <p class="card-text"><strong>所有者:</strong> ${repo.owner}</p>
-                                <p class="card-text"><strong>优先级:</strong> ${repo.priority}</p>
+                                <p class="card-text"><strong>状态:</strong> ${repo.status}</p>
                                 <p class="card-text"><strong>创建时间:</strong> ${formatDateTime(repo.created_at)}</p>
-                                <p class="card-text"><strong>最后更新:</strong> ${formatDateTime(repo.updated_at)}</p>
-                                <p class="card-text"><strong>已用空间:</strong> ${formatBytes(repo.size_estimate)} / ${formatBytes(thresholdBytes)}</p>
-                                <p class="card-text"><strong>文件数量:</strong> <span id="${fileCountId}">加载中...</span> 个文件</p>
-                                
-                                <div class="progress-bar-wrapper">
-                                    <div class="progress">
-                                        <div class="progress-bar ${progressClass}" role="progressbar" style="width: ${usedPercentage}%" 
-                                            aria-valuenow="${usedPercentage}" aria-valuemin="0" aria-valuemax="100"></div>
-                                    </div>
-                                    <small class="text-muted">${usedPercentage}% 已使用</small>
+                                <div class="progress mb-3">
+                                    <div class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">加载中...</div>
                                 </div>
                             </div>
                             <div class="card-footer">
-                                <div class="actions-container">
-                                    <button class="btn btn-sm btn-outline-primary btn-icon sync-size-btn" data-repo-id="${repo.id}">
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-outline-primary sync-size-btn" data-repo-id="${repo.id}">
                                         <i class="bi bi-arrow-repeat"></i> 同步大小
                                     </button>
-                                    
-                                    <button class="btn btn-sm btn-outline-info btn-icon sync-count-btn" data-repo-id="${repo.id}">
-                                        <i class="bi bi-hash"></i> 同步文件数
-                                    </button>
-                                    
                                     ${repo.status !== 'active' ? `
-                                        <button class="btn btn-sm btn-outline-success btn-icon status-btn" data-repo-id="${repo.id}" data-status="active">
+                                        <button class="btn btn-sm btn-outline-success status-btn" data-repo-id="${repo.id}" data-status="active">
                                             <i class="bi bi-play-circle"></i> 激活
                                         </button>
                                     ` : ''}
-                                    
                                     ${repo.status !== 'inactive' ? `
-                                        <button class="btn btn-sm btn-outline-secondary btn-icon status-btn" data-repo-id="${repo.id}" data-status="inactive">
+                                        <button class="btn btn-sm btn-outline-secondary status-btn" data-repo-id="${repo.id}" data-status="inactive">
                                             <i class="bi bi-pause-circle"></i> 禁用
-                                        </button>
-                                    ` : ''}
-                                    
-                                    ${repo.status !== 'full' ? `
-                                        <button class="btn btn-sm btn-outline-danger btn-icon status-btn" data-repo-id="${repo.id}" data-status="full">
-                                            <i class="bi bi-x-circle"></i> 标记已满
                                         </button>
                                     ` : ''}
                                 </div>
                             </div>
                         </div>
                     `;
-                    
                     container.appendChild(card);
                     
-                    // 异步获取文件数量
-                    syncRepoFileCountInBackground(repo.id, document.getElementById(fileCountId));
-                });
+                    // 异步获取仓库大小
+                    try {
+                        const sizeResponse = await fetch(`/api/repositories/sync-size/${repo.id}`, {
+                            method: 'POST'
+                        });
+                        
+                        const sizeData = await sizeResponse.json();
+                        if (sizeData.success) {
+                            const actualSize = sizeData.size;
+                            const thresholdBytes = sizeData.threshold;
+                            const usagePercent = Math.round((actualSize / thresholdBytes) * 100);
+                            
+                            // 更新进度条
+                            const progressBar = card.querySelector('.progress-bar');
+                            progressBar.style.width = `${usagePercent}%`;
+                            progressBar.setAttribute('aria-valuenow', usagePercent);
+                            progressBar.textContent = `${formatBytes(actualSize)} / ${formatBytes(thresholdBytes)}`;
+                        }
+                    } catch (error) {
+                        console.error(`获取仓库 ${repo.name} 大小失败:`, error);
+                    }
+                    
+                    return card;
+                }));
                 
                 // 添加事件监听
                 document.querySelectorAll('.sync-size-btn').forEach(btn => {
                     btn.addEventListener('click', async (e) => {
                         const repoId = e.currentTarget.dataset.repoId;
                         await syncRepositorySize(repoId, e.currentTarget);
-                    });
-                });
-                
-                document.querySelectorAll('.sync-count-btn').forEach(btn => {
-                    btn.addEventListener('click', async (e) => {
-                        const repoId = e.currentTarget.dataset.repoId;
-                        await syncRepositoryFileCount(repoId, e.currentTarget);
                     });
                 });
                 
@@ -408,7 +332,7 @@
                 });
                 
             } catch (error) {
-                console.error('Error loading repositories:', error);
+                console.error('加载仓库列表失败:', error);
                 const container = document.getElementById('repositoriesContainer');
                 container.innerHTML = `
                     <div class="col-12">
