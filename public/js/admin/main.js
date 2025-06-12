@@ -919,70 +919,109 @@ function initRepositoryManagement() {
     
     // 加载仓库列表
     async function loadRepositories() {
-    const container = document.getElementById('repoGrid');
-    if (!container) {
-        console.error('未找到仓库容器元素');
-        return;
-    }
-    
     try {
-        console.log('开始加载仓库列表...');
-        // 显示加载状态
-        container.innerHTML = `
-                <div class="loading-indicator">
-                    <i class="fas fa-spinner fa-spin"></i>
-                    <span>正在加载仓库列表...</span>
-                </div>
-            `;
-            
-        console.log('发送API请求...');
-        const response = await safeApiCall('/api/repositories?include_stats=true');
-        console.log('API响应:', response);
-            
-            if (response.error) {
-            console.error('API返回错误:', response.error);
-                throw new Error(response.error);
-            }
-            
-            const repositories = response.data || [];
-        console.log('获取到仓库列表:', repositories);
+        const response = await fetch('/api/repositories');
+        const data = await response.json();
         
+        if (!data.success) {
+            throw new Error(data.error || '加载仓库列表失败');
+        }
+        
+        const container = document.getElementById('repositoriesContainer');
         container.innerHTML = '';
-            
-            if (repositories.length === 0) {
-            console.log('没有找到仓库');
-            container.innerHTML = `
-                    <div class="empty-state">
-                    <i class="fas fa-folder-open"></i>
-                        <p>暂无仓库</p>
-                    <button class="btn btn-primary" onclick="showCreateRepositoryModal()">
-                        <i class="fas fa-plus"></i> 创建仓库
-                    </button>
+        
+        // 先创建所有仓库卡片
+        const cards = await Promise.all(data.data.map(async (repo) => {
+            const card = document.createElement('div');
+            card.className = 'col-md-4 mb-4';
+            card.innerHTML = `
+                <div class="card h-100">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">${repo.name}</h5>
+                        <span class="badge ${repo.status === 'active' ? 'bg-success' : 'bg-secondary'}">${repo.status}</span>
                     </div>
-                `;
-                return;
-            }
-            
-        console.log('开始渲染仓库卡片...');
-            repositories.forEach(repo => {
-            const card = createRepositoryCard(repo);
-            container.appendChild(card);
-            });
-        console.log('仓库列表加载完成');
-        } catch (error) {
-            console.error('加载仓库列表失败:', error);
-        container.innerHTML = `
-                <div class="error-state">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <p>加载仓库列表失败</p>
-                    <p class="error-message">${error.message}</p>
-                <button class="btn btn-secondary" onclick="loadRepositories()">
-                        <i class="fas fa-redo"></i> 重试
-                    </button>
+                    <div class="card-body">
+                        <p class="card-text"><strong>状态:</strong> ${repo.status}</p>
+                        <p class="card-text"><strong>创建时间:</strong> ${formatDate(repo.created_at)}</p>
+                        <div class="progress mb-3">
+                            <div class="progress-bar" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">加载中...</div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-outline-primary sync-size-btn" data-repo-id="${repo.id}">
+                                <i class="bi bi-arrow-repeat"></i> 同步大小
+                            </button>
+                            ${repo.status !== 'active' ? `
+                                <button class="btn btn-sm btn-outline-success status-btn" data-repo-id="${repo.id}" data-status="active">
+                                    <i class="bi bi-play-circle"></i> 激活
+                                </button>
+                            ` : ''}
+                            ${repo.status !== 'inactive' ? `
+                                <button class="btn btn-sm btn-outline-secondary status-btn" data-repo-id="${repo.id}" data-status="inactive">
+                                    <i class="bi bi-pause-circle"></i> 禁用
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
                 </div>
             `;
-        }
+            container.appendChild(card);
+            
+            // 异步获取仓库大小
+            try {
+                const sizeResponse = await fetch(`/api/repositories/sync-size/${repo.id}`, {
+                    method: 'POST'
+                });
+                
+                const sizeData = await sizeResponse.json();
+                if (sizeData.success) {
+                    const actualSize = sizeData.size;
+                    const thresholdBytes = sizeData.threshold;
+                    const usagePercent = Math.round((actualSize / thresholdBytes) * 100);
+                    
+                    // 更新进度条
+                    const progressBar = card.querySelector('.progress-bar');
+                    progressBar.style.width = `${usagePercent}%`;
+                    progressBar.setAttribute('aria-valuenow', usagePercent);
+                    progressBar.textContent = `${formatBytes(actualSize)} / ${formatBytes(thresholdBytes)}`;
+                }
+            } catch (error) {
+                console.error(`获取仓库 ${repo.name} 大小失败:`, error);
+            }
+            
+            return card;
+        }));
+        
+        // 添加事件监听
+        document.querySelectorAll('.sync-size-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const repoId = e.currentTarget.dataset.repoId;
+                await syncRepositorySize(repoId, e.currentTarget);
+            });
+        });
+        
+        document.querySelectorAll('.status-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                const repoId = e.currentTarget.dataset.repoId;
+                const status = e.currentTarget.dataset.status;
+                await updateRepositoryStatus(repoId, status, e.currentTarget);
+            });
+        });
+        
+    } catch (error) {
+        console.error('加载仓库列表失败:', error);
+        const container = document.getElementById('repositoriesContainer');
+        container.innerHTML = `
+            <div class="col-12">
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i> 
+                    加载仓库列表失败: ${error.message}
+                </div>
+            </div>
+        `;
     }
+}
     
     async function createRepositoryCard(repo) {
         const card = document.createElement('div');
@@ -2908,6 +2947,49 @@ async function createRepository() {
     } catch (error) {
         console.error('创建仓库失败:', error);
         errorElement.textContent = error.message || '创建仓库失败';
+    }
+}
+
+async function syncRepositorySize(repoId, button) {
+    try {
+        button.disabled = true;
+        button.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> 同步中...';
+        
+        const response = await fetch(`/api/repositories/sync-size/${repoId}`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        if (!data.success) {
+            throw new Error(data.error || '同步失败');
+        }
+        
+        // 更新进度条
+        const card = button.closest('.card');
+        const progressBar = card.querySelector('.progress-bar');
+        const usagePercent = Math.round((data.size / data.threshold) * 100);
+        
+        progressBar.style.width = `${usagePercent}%`;
+        progressBar.setAttribute('aria-valuenow', usagePercent);
+        progressBar.textContent = `${formatBytes(data.size)} / ${formatBytes(data.threshold)}`;
+        
+        // 更新状态
+        const statusBadge = card.querySelector('.badge');
+        if (data.isFull) {
+            statusBadge.className = 'badge bg-secondary';
+            statusBadge.textContent = 'inactive';
+        } else {
+            statusBadge.className = 'badge bg-success';
+            statusBadge.textContent = 'active';
+        }
+        
+        showToast('success', '仓库大小同步成功');
+    } catch (error) {
+        console.error('同步仓库大小失败:', error);
+        showToast('error', `同步失败: ${error.message}`);
+    } finally {
+        button.disabled = false;
+        button.innerHTML = '<i class="bi bi-arrow-repeat"></i> 同步大小';
     }
 }
 
