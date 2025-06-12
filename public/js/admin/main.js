@@ -915,10 +915,10 @@ function initRepositoryManagement() {
     
     // 初始加载仓库列表
     loadRepositories();
-}
-
-// 加载仓库列表
-async function loadRepositories() {
+    }
+    
+    // 加载仓库列表
+    async function loadRepositories() {
     const container = document.getElementById('repoGrid');
     if (!container) {
         console.error('未找到仓库容器元素');
@@ -929,218 +929,225 @@ async function loadRepositories() {
         console.log('开始加载仓库列表...');
         // 显示加载状态
         container.innerHTML = `
-            <div class="loading-indicator">
-                <i class="fas fa-spinner fa-spin"></i>
-                <span>正在加载仓库列表...</span>
-            </div>
-        `;
-        
+                <div class="loading-indicator">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <span>正在加载仓库列表...</span>
+                </div>
+            `;
+            
         console.log('发送API请求...');
         const response = await safeApiCall('/api/repositories?include_stats=true');
         console.log('API响应:', response);
-        
-        if (response.error) {
+            
+            if (response.error) {
             console.error('API返回错误:', response.error);
-            throw new Error(response.error);
-        }
-        
-        const repositories = response.data || [];
+                throw new Error(response.error);
+            }
+            
+            const repositories = response.data || [];
         console.log('获取到仓库列表:', repositories);
         
         container.innerHTML = '';
-        
-        if (repositories.length === 0) {
+            
+            if (repositories.length === 0) {
             console.log('没有找到仓库');
             container.innerHTML = `
-                <div class="empty-state">
+                    <div class="empty-state">
                     <i class="fas fa-folder-open"></i>
-                    <p>暂无仓库</p>
+                        <p>暂无仓库</p>
                     <button class="btn btn-primary" onclick="showCreateRepositoryModal()">
                         <i class="fas fa-plus"></i> 创建仓库
                     </button>
-                </div>
-            `;
-            return;
-        }
-        
+                    </div>
+                `;
+                return;
+            }
+            
         console.log('开始渲染仓库卡片...');
-        repositories.forEach(repo => {
+            repositories.forEach(repo => {
             const card = createRepositoryCard(repo);
             container.appendChild(card);
-        });
+            });
         console.log('仓库列表加载完成');
-    } catch (error) {
-        console.error('加载仓库列表失败:', error);
+        } catch (error) {
+            console.error('加载仓库列表失败:', error);
         container.innerHTML = `
-            <div class="error-state">
-                <i class="fas fa-exclamation-triangle"></i>
-                <p>加载仓库列表失败</p>
-                <p class="error-message">${error.message}</p>
+                <div class="error-state">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>加载仓库列表失败</p>
+                    <p class="error-message">${error.message}</p>
                 <button class="btn btn-secondary" onclick="loadRepositories()">
-                    <i class="fas fa-redo"></i> 重试
-                </button>
-            </div>
-        `;
-    }
-}
-
-function createRepositoryCard(repo) {
-    const card = document.createElement('div');
-    card.className = 'repo-card';
-    card.dataset.repoId = repo.id;
-    
-    // 计算仓库的文件数量和总大小
-    const fileCount = repo.file_count || 0;
-    const totalSize = repo.total_size || 0;
-    const threshold = repo.size_limit || 0;
-    
-    // 格式化大小显示
-    const formattedSize = formatSize(totalSize);
-    const formattedThreshold = threshold ? formatSize(threshold) : '未设置';
-    
-    // 计算使用百分比
-    const usagePercent = threshold ? Math.min((totalSize / threshold) * 100, 100) : 0;
-    
-    card.innerHTML = `
-        <div class="repo-header">
-            <h3>${repo.name}</h3>
-        </div>
-        <div class="repo-info">
-            <p><i class="fas fa-file"></i> ${fileCount} 个文件</p>
-            <p><i class="fas fa-hdd"></i> ${formattedSize} / ${formattedThreshold}(阈值)</p>
-            <p><i class="fas fa-clock"></i> 创建于 ${formatDate(repo.created_at)}</p>
-            <div class="progress-bar">
-                <div class="progress" style="width: ${usagePercent}%"></div>
-            </div>
-        </div>
-    `;
-    
-    return card;
-}
-
-// 激活仓库
-async function activateRepository(repoId) {
-    try {
-        const loadingToast = showNotification('正在设置活跃仓库...', 'info', 0);
-        
-        const response = await safeApiCall(`/api/repositories/${repoId}/activate`, {
-            method: 'POST'
-        });
-        
-        // 关闭加载提示
-        document.body.removeChild(loadingToast);
-        
-        if (response.error) {
-            throw new Error(response.error);
-        }
-
-        showNotification('已成功设置活跃仓库', 'success');
-        loadRepositories(); // 重新加载仓库列表
-    } catch (error) {
-        console.error('设置活跃仓库失败:', error);
-        showNotification('设置活跃仓库失败: ' + error.message, 'error');
-    }
-}
-
-// 显示仓库详情
-function showRepositoryDetails(repo) {
-    // 创建模态框
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    
-    const usedSizeMB = Math.round(repo.size_estimate / (1024 * 1024) * 100) / 100;
-    const maxSizeMB = Math.round(parseInt(repo.max_size || '943718400') / (1024 * 1024));
-    const usagePercent = Math.min(Math.round((repo.size_estimate / parseInt(repo.max_size || '943718400')) * 100), 100);
-    
-    // 确定仓库状态样式和文本
-    let statusClass = 'inactive';
-    let statusText = '未使用';
-    
-    if (repo.status === 'active') {
-        statusClass = 'active';
-        statusText = '当前使用';
-    } else if (repo.status === 'inactive') {
-        statusClass = 'inactive';
-        statusText = '未使用';
-    } else if (repo.status === 'full') {
-        statusClass = 'full';
-        statusText = '已满';
-    }
-    
-    // 确定使用率颜色
-    let usageFillClass = '';
-    if (usagePercent > 90) {
-        usageFillClass = 'danger';
-    } else if (usagePercent > 70) {
-        usageFillClass = 'warning';
-    }
-    
-    modal.innerHTML = `
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>仓库详情: ${repo.name}</h3>
-                <button class="close-btn">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="repo-details">
-                    <div class="detail-item">
-                        <strong>仓库ID:</strong> ${repo.id}
-                    </div>
-                    <div class="detail-item">
-                        <strong>状态:</strong> 
-                        <span class="repo-status ${statusClass}">
-                            ${statusText}
-                        </span>
-                    </div>
-                    <div class="detail-item">
-                        <strong>文件数量:</strong> ${repo.file_count || 0}
-                    </div>
-                    <div class="detail-item">
-                        <strong>使用空间:</strong> ${usedSizeMB} MB / ${maxSizeMB} MB (${usagePercent}%)
-                    </div>
-                    <div class="detail-item">
-                        <strong>创建时间:</strong> ${formatDate(repo.created_at)}
-                    </div>
-                    <div class="detail-item">
-                        <strong>最后更新:</strong> ${formatDate(repo.updated_at)}
-                    </div>
-                    <div class="detail-item">
-                        <strong>GitHub仓库:</strong> 
-                        <a href="${repo.html_url}" target="_blank">${repo.full_name || repo.name}</a>
-                    </div>
-                </div>
-                
-                <div class="repo-usage-bar">
-                    <div class="usage-fill ${usageFillClass}" style="width: ${usagePercent}%"></div>
-                    <span class="usage-text">${usagePercent}%</span>
-                </div>
-                
-                <div class="repo-actions">
-                    ${repo.status !== 'active' ? `
-                        <button class="btn btn-primary" id="activateRepoBtn">
-                            <i class="fas fa-check-circle"></i> 设为活跃仓库
-                        </button>
-                    ` : ''}
-                </div>
-            </div>
+                        <i class="fas fa-redo"></i> 重试
+                    </button>
                 </div>
             `;
-    
-    document.body.appendChild(modal);
-    
-    // 添加事件监听
-    const closeBtn = modal.querySelector('.close-btn');
-    closeBtn.addEventListener('click', () => {
-        document.body.removeChild(modal);
-    });
-    
-    const activateRepoBtn = modal.querySelector('#activateRepoBtn');
-    if (activateRepoBtn) {
-        activateRepoBtn.addEventListener('click', () => {
-            document.body.removeChild(modal);
-            activateRepository(repo.id);
-        });
+        }
     }
+    
+    async function createRepositoryCard(repo) {
+        const card = document.createElement('div');
+        card.className = 'repo-card';
+        card.dataset.repoId = repo.id;
+        
+        // 获取仓库大小阈值
+        const thresholdSetting = await env.DB.prepare(`
+          SELECT value FROM settings WHERE key = 'repository_size_threshold'
+        `).first();
+        
+        const thresholdBytes = thresholdSetting ? 
+          parseInt(thresholdSetting.value) : 
+          900 * 1024 * 1024; // 默认900MB
+        
+        // 获取仓库实际大小
+        const actualSize = await getRepositorySize(
+          env, 
+          repo.owner, 
+          repo.name, 
+          repo.token || env.GITHUB_TOKEN
+        );
+        
+        // 计算使用百分比
+        const usagePercent = Math.round((actualSize / thresholdBytes) * 100);
+        
+        card.innerHTML = `
+            <div class="repo-header">
+                <h3>${repo.name}</h3>
+            </div>
+            <div class="repo-info">
+                <p><i class="fas fa-hdd"></i> ${formatBytes(actualSize)} / ${formatBytes(thresholdBytes)}</p>
+                <p><i class="fas fa-clock"></i> 创建于 ${formatDate(repo.created_at)}</p>
+                <div class="progress-bar">
+                    <div class="progress" style="width: ${usagePercent}%"></div>
+                </div>
+            </div>
+        `;
+        
+        return card;
+    }
+    
+    // 激活仓库
+    async function activateRepository(repoId) {
+        try {
+            const loadingToast = showNotification('正在设置活跃仓库...', 'info', 0);
+            
+            const response = await safeApiCall(`/api/repositories/${repoId}/activate`, {
+                method: 'POST'
+            });
+            
+            // 关闭加载提示
+            document.body.removeChild(loadingToast);
+            
+            if (response.error) {
+                throw new Error(response.error);
+            }
+            
+            showNotification('已成功设置活跃仓库', 'success');
+            loadRepositories(); // 重新加载仓库列表
+        } catch (error) {
+            console.error('设置活跃仓库失败:', error);
+            showNotification('设置活跃仓库失败: ' + error.message, 'error');
+        }
+    }
+    
+    // 显示仓库详情
+    function showRepositoryDetails(repo) {
+        // 创建模态框
+        const modal = document.createElement('div');
+        modal.className = 'modal';
+        
+        const usedSizeMB = Math.round(repo.size_estimate / (1024 * 1024) * 100) / 100;
+        const maxSizeMB = Math.round(parseInt(repo.max_size || '943718400') / (1024 * 1024));
+        const usagePercent = Math.min(Math.round((repo.size_estimate / parseInt(repo.max_size || '943718400')) * 100), 100);
+        
+        // 确定仓库状态样式和文本
+        let statusClass = 'inactive';
+        let statusText = '未使用';
+        
+        if (repo.status === 'active') {
+            statusClass = 'active';
+            statusText = '当前使用';
+        } else if (repo.status === 'inactive') {
+            statusClass = 'inactive';
+            statusText = '未使用';
+        } else if (repo.status === 'full') {
+            statusClass = 'full';
+            statusText = '已满';
+        }
+        
+        // 确定使用率颜色
+        let usageFillClass = '';
+        if (usagePercent > 90) {
+            usageFillClass = 'danger';
+        } else if (usagePercent > 70) {
+            usageFillClass = 'warning';
+        }
+        
+        modal.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>仓库详情: ${repo.name}</h3>
+                    <button class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="repo-details">
+                        <div class="detail-item">
+                            <strong>仓库ID:</strong> ${repo.id}
+                        </div>
+                        <div class="detail-item">
+                            <strong>状态:</strong> 
+                            <span class="repo-status ${statusClass}">
+                                ${statusText}
+                            </span>
+                        </div>
+                        <div class="detail-item">
+                            <strong>文件数量:</strong> ${repo.file_count || 0}
+                        </div>
+                        <div class="detail-item">
+                            <strong>使用空间:</strong> ${usedSizeMB} MB / ${maxSizeMB} MB (${usagePercent}%)
+                        </div>
+                        <div class="detail-item">
+                            <strong>创建时间:</strong> ${formatDate(repo.created_at)}
+                        </div>
+                        <div class="detail-item">
+                            <strong>最后更新:</strong> ${formatDate(repo.updated_at)}
+                        </div>
+                        <div class="detail-item">
+                            <strong>GitHub仓库:</strong> 
+                            <a href="${repo.html_url}" target="_blank">${repo.full_name || repo.name}</a>
+                        </div>
+                    </div>
+                    
+                    <div class="repo-usage-bar">
+                        <div class="usage-fill ${usageFillClass}" style="width: ${usagePercent}%"></div>
+                        <span class="usage-text">${usagePercent}%</span>
+                    </div>
+                    
+                    <div class="repo-actions">
+                        ${repo.status !== 'active' ? `
+                            <button class="btn btn-primary" id="activateRepoBtn">
+                                <i class="fas fa-check-circle"></i> 设为活跃仓库
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.appendChild(modal);
+        
+        // 添加事件监听
+        const closeBtn = modal.querySelector('.close-btn');
+        closeBtn.addEventListener('click', () => {
+            document.body.removeChild(modal);
+        });
+        
+        const activateRepoBtn = modal.querySelector('#activateRepoBtn');
+        if (activateRepoBtn) {
+            activateRepoBtn.addEventListener('click', () => {
+                document.body.removeChild(modal);
+                activateRepository(repo.id);
+            });
+        }
 }
 
 // 初始化批量操作按钮
@@ -1214,9 +1221,9 @@ function initBatchOperations() {
         // 如果当前按钮已经激活，则关闭菜单并返回
         if (batchCopyButton.classList.contains('active')) {
             closeAllDropdowns();
-                return;
-            }
-            
+            return;
+        }
+        
         // 先关闭所有已打开的下拉菜单
         closeAllDropdowns();
         
@@ -1356,7 +1363,7 @@ async function updateDashboardStats() {
             const sizeInBytes = stats.total_size || 0;
             totalSizeElement.textContent = formatFileSize(sizeInBytes, 2);
         }
-        } catch (error) {
+    } catch (error) {
         console.error('更新控制面板统计数据失败:', error);
     }
 }
@@ -1826,10 +1833,10 @@ function createImageCard(image) {
             </div>
             <button class="btn-delete" data-id="${image.id}" title="删除图片">
                 <i class="fas fa-trash"></i> 删除
-                    </button>
-                </div>
-            `;
-            
+            </button>
+        </div>
+    `;
+    
     // 文件名提示工具
     const filenameSpan = card.querySelector('.image-filename');
     
@@ -2486,9 +2493,9 @@ async function uploadSelectedFiles(files) {
         const elapsedTime = (Date.now() - startTime) / 1000; // 转换为秒
         const speed = uploadedSize / elapsedTime; // 字节/秒
         progressSpeed.textContent = `${formatSize(speed)}/s`;
-    }
-    
-    try {
+        }
+        
+        try {
         for (const file of files) {
             // 定义文件大小阈值，超过此值使用分块上传
             const CHUNK_SIZE_THRESHOLD = 5 * 1024 * 1024; // 5MB
@@ -2509,7 +2516,7 @@ async function uploadSelectedFiles(files) {
                         throw error;
                     }
                 });
-                
+                    
                 // 开始上传
                 await uploader.start();
             } else {
@@ -2538,7 +2545,7 @@ async function uploadSelectedFiles(files) {
         
         showNotification('文件上传成功', 'success');
     } catch (error) {
-        console.error('上传文件失败:', error);
+            console.error('上传文件失败:', error);
         showNotification('上传文件失败: ' + error.message, 'error');
     } finally {
         // 重置上传状态
