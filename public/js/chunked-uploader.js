@@ -225,6 +225,15 @@ class ChunkedUploader {
         try {
           const errorJson = JSON.parse(errorText);
           errorText = errorJson.error || errorText;
+          
+          // 如果是会话过期，重新创建会话并重试
+          if (errorJson.error === '会话不存在或已过期') {
+            console.log('会话已过期，重新创建会话...');
+            await this._createUploadSession();
+            // 重试当前分块
+            await this._uploadNextChunk();
+            return;
+          }
         } catch (e) {}
         throw new Error(`上传分块失败: ${errorText}`);
       }
@@ -267,6 +276,8 @@ class ChunkedUploader {
         
         // 延迟重试
         await new Promise(resolve => setTimeout(resolve, 1000 * chunk.retries));
+        
+        // 重试当前分块
         await this._uploadNextChunk();
       } else {
         // 超过重试次数，取消整个上传
@@ -279,9 +290,6 @@ class ChunkedUploader {
    * 更新上传进度
    */
   _updateProgress() {
-    // 计算已上传的分块数量
-    const uploadedChunks = this.uploadedChunks.length;
-    
     // 计算已上传的字节数
     const uploadedSize = this.uploadedChunks.reduce((total, index) => {
       return total + this.chunks[index].size;
