@@ -260,7 +260,7 @@ export async function createNewRepository(env, currentRepoName) {
             owner: env.GITHUB_OWNER,
             repo: newRepoName,
             path: 'public/images/.gitkeep',
-            message: '创建images目录',
+            message: '创建public/images目录',
             content: btoa(''),
             branch: 'main'
           });
@@ -268,95 +268,43 @@ export async function createNewRepository(env, currentRepoName) {
           console.error('检查public/images目录时出错:', error);
         }
       }
-      
-      console.log(`仓库 ${newRepoName} 的目录结构创建完成`);
-    } catch (dirError) {
-      console.error('创建目录结构失败:', dirError);
-      // 继续执行，不因为创建目录失败而中断
-    }
-    
-    // 获取Cloudflare Pages部署钩子
-    let deployHook = env.DEPLOY_HOOK;
-    
-    // 如果有其他仓库，尝试从中获取部署钩子
-    if (!deployHook) {
-      try {
-        const existingRepo = await env.DB.prepare(`
-          SELECT deploy_hook FROM repositories 
-          WHERE deploy_hook IS NOT NULL AND deploy_hook != '' 
-          LIMIT 1
-        `).first();
-        
-        if (existingRepo && existingRepo.deploy_hook) {
-          deployHook = existingRepo.deploy_hook;
-          console.log(`从现有仓库获取部署钩子`);
-        }
-      } catch (error) {
-        console.error('获取现有仓库部署钩子失败:', error);
-      }
+    } catch (error) {
+      console.error('创建目录结构时出错:', error);
+      throw new Error('创建仓库目录结构失败: ' + error.message);
     }
     
     // 在数据库中创建仓库记录
     try {
+      console.log(`在数据库中创建仓库记录: ${newRepoName}`);
+      
       const result = await env.DB.prepare(`
-        INSERT INTO repositories (
-          name, owner, token, deploy_hook, status, is_default, size_estimate, priority, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, 'active', 0, 0, 0, datetime('now', '+8 hours'), datetime('now', '+8 hours'))
-      `).bind(
-        newRepoName, 
-        env.GITHUB_OWNER, 
-        env.GITHUB_TOKEN,
-        deployHook
-      ).run();
+        INSERT INTO repositories (name, owner, status, priority, created_at, updated_at)
+        VALUES (?, ?, 'active', 0, datetime('now', '+8 hours'), datetime('now', '+8 hours'))
+      `).bind(newRepoName, env.GITHUB_OWNER).run();
       
-      console.log(`仓库 ${newRepoName} 记录已添加到数据库，ID: ${result.meta?.last_row_id || '未知'}`);
+      console.log('数据库插入结果:', result);
       
-      // 将其他仓库标记为非活跃
-      await env.DB.prepare(`
-        UPDATE repositories 
-        SET status = 'inactive', updated_at = datetime('now', '+8 hours')
-        WHERE name != ?
-      `).bind(newRepoName).run();
+      // 获取新创建的仓库记录
+      const newRepo = await env.DB.prepare(`
+        SELECT * FROM repositories WHERE name = ? AND owner = ?
+      `).bind(newRepoName, env.GITHUB_OWNER).first();
       
-      console.log(`其他仓库已标记为非活跃`);
-
-      // 更新 REPOS 环境变量
-      if (env.CF_API_TOKEN && env.CF_ACCOUNT_ID && env.CF_PROJECT_NAME) {
-        try {
-          console.log(`尝试更新 REPOS 环境变量，添加 ${newRepoName}`);
-          const updateResult = await updateReposVariable(env, newRepoName);
-          if (updateResult.success) {
-            console.log(`REPOS 环境变量更新成功: ${updateResult.message}`);
-          } else {
-            console.error(`REPOS 环境变量更新失败: ${updateResult.error}`);
-          }
-        } catch (cfError) {
-          console.error('更新 REPOS 环境变量时出错:', cfError);
-          // 继续执行，不因为更新环境变量失败而中断
-        }
-      } else {
-        console.log('缺少 Cloudflare API 配置，跳过更新 REPOS 环境变量');
+      if (!newRepo) {
+        throw new Error('无法获取新创建的仓库记录');
       }
       
-      // 返回新仓库信息
-      return {
-        id: result.meta?.last_row_id,
-        owner: env.GITHUB_OWNER,
-        repo: newRepoName,
-        token: env.GITHUB_TOKEN,
-        deployHook: deployHook
-      };
-    } catch (dbError) {
-      console.error('添加仓库记录到数据库失败:', dbError);
+      console.log('新仓库创建成功:', newRepo);
       
-      // 即使数据库操作失败，也返回仓库信息
       return {
-        id: null,
-        owner: env.GITHUB_OWNER,
-        repo: newRepoName,
-        token: env.GITHUB_TOKEN,
-        deployHook: deployHook
+        id: newRepo.id,
+        owner: newRepo.owner,
+        repo: newRepo.name,
+        token: newRepo.token || env.GITHUB_TOKEN,
+        deployHook: newRepo.deploy_hook || env.DEPLOY_HOOK
       };
+    } catch (error) {
+      console.error('在数据库中创建仓库记录失败:', error);
+      throw new Error('创建仓库记录失败: ' + error.message);
     }
   } catch (error) {
     console.error('创建新仓库失败:', error);
