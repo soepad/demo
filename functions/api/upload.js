@@ -647,145 +647,88 @@ export async function onRequest(context) {
       const datePath = getBeijingDatePath();
       
       // 构建文件路径 - 使用原始文件名（或在必要时添加时间戳）
-      // 检查文件名是否已经包含扩展名
       let uploadFileName = session.fileName;
       if (!uploadFileName.includes('.')) {
-        // 如果没有扩展名，根据MIME类型添加
-        const mimeToExt = {
-          'image/jpeg': '.jpg',
-          'image/png': '.png',
-          'image/gif': '.gif',
-          'image/webp': '.webp',
-          'image/svg+xml': '.svg'
-        };
-        const ext = mimeToExt[session.mimeType] || '.jpg';
-        uploadFileName = `${uploadFileName}${ext}`;
+        // 如果文件名没有扩展名，添加一个
+        const extension = session.mimeType.split('/')[1] || 'jpg';
+        uploadFileName = `${uploadFileName}.${extension}`;
       }
       
-      // 构建完整路径：public/images/年/月/日/文件名
       const filePath = `public/images/${datePath}/${uploadFileName}`;
       
-      console.log(`准备上传文件到GitHub仓库 ${repository.repo}: ${filePath}`);
-      
-      // 检查文件是否已存在
       try {
-        const fileExists = await octokit.rest.repos.getContent({
+        // 上传文件到GitHub
+        const response = await octokit.rest.repos.createOrUpdateFileContents({
           owner: repository.owner,
           repo: repository.repo,
           path: filePath,
-          ref: 'main'
+          message: `Upload ${uploadFileName}`,
+          content: base64Data,
+          branch: 'main'
         });
         
-        // 如果没有抛出错误，说明文件存在
         // 清理会话数据
         uploadSessions.delete(sessionId);
         sessionChunks.delete(sessionId);
         sessionExpiry.delete(sessionId);
         
+        // 更新仓库大小估算
+        await updateRepositorySizeEstimate(env, repository.id, session.fileSize);
+        
+        // 触发部署钩子
+        if (!skipDeploy && repository.deployHook) {
+          try {
+            await fetch(repository.deployHook, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+          } catch (deployError) {
+            console.error('触发部署钩子失败:', deployError);
+            // 继续执行，不因为部署失败而中断
+          }
+        }
+        
         return new Response(JSON.stringify({
-          success: false,
-          error: `文件 "${uploadFileName}" 已存在，请重命名后重试`,
-          details: 'File already exists'
+          success: true,
+          file: {
+            name: uploadFileName,
+            path: filePath,
+            size: session.fileSize,
+            url: response.data.content.html_url
+          }
         }), {
-          status: 409, // 明确返回409冲突状态码
           headers: {
             'Content-Type': 'application/json',
             ...corsHeaders
           }
         });
-      } catch (existingFileError) {
-        // 如果是404错误，说明文件不存在，可以继续上传
-        if (existingFileError.status !== 404) {
-          // 如果是其他错误，记录下来，但继续尝试上传
-          console.warn('检查文件是否存在时出错:', existingFileError);
-        }
-      }
-      
-      // 上传到GitHub
-      const response = await octokit.rest.repos.createOrUpdateFileContents({
-        owner: repository.owner,
-        repo: repository.repo,
-        path: filePath,
-        message: `Upload ${uploadFileName} (${datePath})`,
-        content: base64Data,
-        branch: 'main'
-      });
-      
-      console.log(`文件上传到GitHub成功，SHA: ${response.data.content.sha}`);
-      
-      // 更新仓库大小估算
-      await updateRepositorySizeEstimate(env, repository.id, session.fileSize);
-      
-      // 保存到数据库 - 使用北京时间而非UTC时间
-      try {
-        // 获取当前北京时间的格式字符串
-        const now = new Date();
-        const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+      } catch (error) {
+        console.error('上传文件到GitHub失败:', error);
         
-        // 使用getUTC*方法正确格式化北京时间
-        const beijingYear = beijingTime.getUTCFullYear();
-        const beijingMonth = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
-        const beijingDay = String(beijingTime.getUTCDate()).padStart(2, '0');
-        const beijingHour = String(beijingTime.getUTCHours()).padStart(2, '0');
-        const beijingMinute = String(beijingTime.getUTCMinutes()).padStart(2, '0');
-        const beijingSecond = String(beijingTime.getUTCSeconds()).padStart(2, '0');
-        const beijingTimeString = `${beijingYear}-${beijingMonth}-${beijingDay} ${beijingHour}:${beijingMinute}:${beijingSecond}`;
+        // 清理会话数据
+        uploadSessions.delete(sessionId);
+        sessionChunks.delete(sessionId);
+        sessionExpiry.delete(sessionId);
         
-        await env.DB.prepare(`
-          INSERT INTO images (filename, size, mime_type, github_path, sha, created_at, updated_at, repository_id)
-          VALUES (?, ?, ?, ?, ?, datetime(?), datetime(?), ?)
-        `).bind(
-          uploadFileName,
-          session.fileSize,
-          session.mimeType,
-          filePath,
-          response.data.content.sha,
-          beijingTimeString,
-          beijingTimeString,
-          repository.id
-        ).run();
+        // 处理特定类型的错误
+        if (error.message && error.message.includes('already exists')) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: `文件 "${uploadFileName}" 已存在，请重命名后重试`,
+            details: 'File already exists'
+          }), {
+            status: 409,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
         
-        console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeString}`);
-      } catch (dbError) {
-        console.error('数据库保存失败:', dbError);
-        // 继续执行，不因为数据库错误而中断响应
+        throw error;
       }
-      
-      // 清理会话数据
-      uploadSessions.delete(sessionId);
-      sessionChunks.delete(sessionId);
-      sessionExpiry.delete(sessionId);
-      
-      // 只有在不跳过部署的情况下才触发部署钩子
-      if (!skipDeploy) {
-        // GitHub API已经确认文件上传成功，可以立即触发部署
-        console.log('GitHub已确认文件上传成功，触发Cloudflare Pages部署钩子，这是最后一个文件');
-        const deployResult = await triggerDeployHook(env);
-        if (deployResult.success) {
-          console.log('图片上传后部署已成功触发');
-        } else {
-          console.error('图片上传后部署失败:', deployResult.error);
-        }
-      } else {
-        console.log('根据请求参数跳过触发部署，这不是最后一个文件');
-      }
-      
-      // 返回链接信息
-      const imageUrl = `${env.SITE_URL}/images/${datePath}/${uploadFileName}`;
-      return new Response(JSON.stringify({
-        success: true,
-        data: {
-          url: imageUrl,
-          markdown: `![${uploadFileName}](${imageUrl})`,
-          html: `<img src="${imageUrl}" alt="${uploadFileName}">`,
-          bbcode: `[img]${imageUrl}[/img]`
-        }
-      }), {
-        headers: {
-          'Content-Type': 'application/json',
-          ...corsHeaders
-        }
-      });
     } catch (error) {
       console.error('完成上传失败:', error);
       
@@ -796,42 +739,6 @@ export async function onRequest(context) {
         sessionExpiry.delete(sessionId);
       }
       
-      // 处理特定类型的错误
-      if (error.message && error.message.includes('already exists')) {
-        // 文件已存在冲突
-        return new Response(JSON.stringify({
-          success: false,
-          error: `文件 "${uploadFileName}" 已存在，请重命名后重试`,
-          details: 'File already exists'
-        }), {
-          status: 409, // 明确返回409冲突状态码
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        });
-      } else if (error.status === 403 || error.status === 401) {
-        // 权限不足
-        return new Response(JSON.stringify({
-          success: false,
-          error: 'GitHub授权失败，请检查Token是否正确',
-          message: error.message,
-          details: {
-            stack: error.stack,
-            env: {
-              hasToken: !!env.GITHUB_TOKEN
-            }
-          }
-        }), {
-          status: error.status,
-          headers: {
-            'Content-Type': 'application/json',
-            ...corsHeaders
-          }
-        });
-      }
-      
-      // 其他错误
       return new Response(JSON.stringify({
         success: false,
         error: '完成上传失败',
