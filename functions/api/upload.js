@@ -691,11 +691,6 @@ export async function onRequest(context) {
       // 使用分配的仓库
       const { repository } = allocation;
       
-      // 使用GitHub API上传文件
-      const octokit = new Octokit({
-        auth: repository.token
-      });
-      
       // 获取北京时间的日期路径
       const datePath = getBeijingDatePath();
       
@@ -708,6 +703,41 @@ export async function onRequest(context) {
       }
       
       const filePath = `public/images/${datePath}/${uploadFileName}`;
+      
+      // 检查文件是否已存在
+      try {
+        const existingFile = await env.DB.prepare(`
+          SELECT id FROM images 
+          WHERE filename = ? AND repository_id = ?
+        `).bind(uploadFileName, repository.id).first();
+        
+        if (existingFile) {
+          // 清理会话数据
+          uploadSessions.delete(sessionId);
+          sessionChunks.delete(sessionId);
+          sessionExpiry.delete(sessionId);
+          
+          return new Response(JSON.stringify({
+            success: false,
+            error: `文件 "${uploadFileName}" 已存在，请重命名后重试`,
+            details: 'File already exists'
+          }), {
+            status: 409,
+            headers: {
+              'Content-Type': 'application/json',
+              ...corsHeaders
+            }
+          });
+        }
+      } catch (dbError) {
+        console.error('检查文件是否存在失败:', dbError);
+        // 继续执行，不因为数据库错误而中断
+      }
+      
+      // 使用GitHub API上传文件
+      const octokit = new Octokit({
+        auth: repository.token
+      });
       
       try {
         // 上传文件到GitHub
@@ -734,16 +764,6 @@ export async function onRequest(context) {
           const beijingMinute = String(beijingTime.getUTCMinutes()).padStart(2, '0');
           const beijingSecond = String(beijingTime.getUTCSeconds()).padStart(2, '0');
           const beijingTimeString = `${beijingYear}-${beijingMonth}-${beijingDay} ${beijingHour}:${beijingMinute}:${beijingSecond}`;
-          
-          // 检查文件是否已存在
-          const existingFile = await env.DB.prepare(`
-            SELECT id FROM images 
-            WHERE filename = ? AND repository_id = ?
-          `).bind(uploadFileName, repository.id).first();
-          
-          if (existingFile) {
-            throw new Error(`文件 "${uploadFileName}" 已存在，请重命名后重试`);
-          }
           
           // 插入新文件
           await env.DB.prepare(`
@@ -772,23 +792,7 @@ export async function onRequest(context) {
           console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeString}`);
         } catch (dbError) {
           console.error('数据库保存失败:', dbError);
-          
-          // 如果是文件已存在的错误，返回409状态码
-          if (dbError.message && dbError.message.includes('已存在')) {
-            return new Response(JSON.stringify({
-              success: false,
-              error: dbError.message,
-              details: 'File already exists'
-            }), {
-              status: 409,
-              headers: {
-                'Content-Type': 'application/json',
-                ...corsHeaders
-              }
-            });
-          }
-          
-          // 其他数据库错误，继续执行，不中断响应
+          // 继续执行，不因为数据库错误而中断
         }
         
         // 清理会话数据
