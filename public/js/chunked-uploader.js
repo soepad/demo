@@ -326,6 +326,11 @@ class ChunkedUploader {
    */
   async _completeUpload() {
     try {
+      // 检查是否所有分块都已上传
+      if (this.uploadedChunks.length !== this.totalChunks) {
+        throw new Error('部分分块上传失败，请重试');
+      }
+
       const response = await fetch(`${this.apiPath}?action=complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -348,7 +353,14 @@ class ChunkedUploader {
         if (response.status === 409) {
           throw new Error(`文件 "${this.fileName}" 已存在，请重命名后重试`);
         } else if (response.status === 404) {
-          throw new Error('会话不存在或已过期，请重新上传');
+          // 如果是会话过期，尝试重新创建会话并重试
+          console.log('会话已过期，重新创建会话...');
+          await this._createUploadSession();
+          // 重新上传所有分块
+          this.currentChunkIndex = 0;
+          this.uploadedChunks = [];
+          await this._uploadNextChunk();
+          return;
         } else if (response.status === 500) {
           // 处理服务器内部错误
           const errorMessage = result.error || '服务器内部错误';
