@@ -2495,13 +2495,23 @@ async function uploadSelectedFiles(files) {
             
             if (file.size > CHUNK_SIZE_THRESHOLD && window.ChunkedUploader) {
                 console.log(`文件大小超过${formatSize(CHUNK_SIZE_THRESHOLD)}，使用分块上传`);
-                await uploadLargeFileWithChunks(file, (progress) => {
-                    // 计算总体进度 (已上传完成的文件 + 当前文件的进度)
-                    const currentFileContribution = progress.uploadedSize / totalSize;
-                    const completedFilesContribution = uploadedSize / totalSize;
-                    const overallProgress = completedFilesContribution + currentFileContribution;
-                    updateProgress(progress.uploadedSize);
+                
+                // 创建分块上传实例
+                const uploader = new window.ChunkedUploader(file, {
+                    onProgress: (progress) => {
+                        updateProgress(progress.uploadedSize);
+                    },
+                    onComplete: (result) => {
+                        console.log('分块上传完成:', result);
+                    },
+                    onError: (error) => {
+                        console.error('分块上传失败:', error);
+                        throw error;
+                    }
                 });
+                
+                // 开始上传
+                await uploader.start();
             } else {
                 console.log(`使用普通上传方式`);
                 await uploadFileWithProgress(file, (loaded, total) => {
