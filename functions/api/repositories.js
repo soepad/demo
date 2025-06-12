@@ -102,13 +102,6 @@ async function syncRepositorySize(env, repoId) {
       repo.token || env.GITHUB_TOKEN
     );
     
-    // 更新数据库中的大小估算
-    await env.DB.prepare(`
-      UPDATE repositories 
-      SET size_estimate = ?, updated_at = CURRENT_TIMESTAMP 
-      WHERE id = ?
-    `).bind(actualSize, repoId).run();
-    
     // 检查是否达到阈值
     const thresholdSetting = await env.DB.prepare(`
       SELECT value FROM settings WHERE key = 'repository_size_threshold'
@@ -125,13 +118,13 @@ async function syncRepositorySize(env, repoId) {
     // 如果达到或超过阈值，更新状态
     if (actualSize >= repoSizeThreshold) {
       await env.DB.prepare(`
-        UPDATE repositories SET status = 'full', updated_at = CURRENT_TIMESTAMP
+        UPDATE repositories SET status = 'inactive', updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).bind(repoId).run();
       
-      console.log(`仓库 ${repo.name} 已达到大小阈值 ${Math.round(repoSizeThreshold / (1024 * 1024))}MB，状态更新为 'full'`);
-    } else if (actualSize < repoSizeThreshold && repo.status === 'full') {
-      // 如果之前标记为满但现在未满，恢复状态
+      console.log(`仓库 ${repo.name} 已达到大小阈值 ${Math.round(repoSizeThreshold / (1024 * 1024))}MB，状态更新为 'inactive'`);
+    } else if (actualSize < repoSizeThreshold && repo.status === 'inactive') {
+      // 如果之前标记为不活跃但现在未满，恢复状态
       await env.DB.prepare(`
         UPDATE repositories SET status = 'active', updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
