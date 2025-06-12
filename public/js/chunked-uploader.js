@@ -268,51 +268,6 @@ class ChunkedUploader {
   }
   
   /**
-   * 完成上传过程
-   */
-  async _completeUpload() {
-    try {
-      const response = await fetch('/api/upload?action=complete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: this.sessionId,
-          skipDeploy: this.skipDeploy
-        })
-      });
-      
-      const responseText = await response.text();
-      let result;
-      try {
-        result = JSON.parse(responseText);
-      } catch (e) {
-        throw new Error(`完成上传失败: 无效的响应格式 - ${responseText}`);
-      }
-      
-      if (!response.ok) {
-        // 处理特定类型的错误
-        if (response.status === 409) {
-          throw new Error(`文件 "${this.fileName}" 已存在，请重命名后重试`);
-        } else if (response.status === 500) {
-          // 处理服务器内部错误
-          const errorMessage = result.error || '服务器内部错误';
-          const errorDetails = result.details || {};
-          console.error('服务器错误详情:', errorDetails);
-          throw new Error(`完成上传失败: ${errorMessage}`);
-        } else {
-          throw new Error(result.error || `完成上传失败: ${response.status}`);
-        }
-      }
-      
-      this._setStatus('completed');
-      this.onComplete(result);
-      
-    } catch (error) {
-      this._handleError(error);
-    }
-  }
-  
-  /**
    * 更新上传进度
    */
   _updateProgress() {
@@ -339,6 +294,7 @@ class ChunkedUploader {
       }
     }
     
+    // 调用进度回调
     this.onProgress({
       progress: this.progress,
       uploadedSize: this.uploadedChunks.reduce((total, index) => total + this.chunks[index].size, 0),
@@ -346,6 +302,53 @@ class ChunkedUploader {
       speed: this.uploadSpeed,
       remainingTime: this.remainingTime
     });
+  }
+  
+  /**
+   * 完成上传过程
+   */
+  async _completeUpload() {
+    try {
+      const response = await fetch('/api/upload?action=complete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId: this.sessionId,
+          skipDeploy: this.skipDeploy
+        })
+      });
+      
+      const responseText = await response.text();
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error(`完成上传失败: 无效的响应格式 - ${responseText}`);
+      }
+      
+      if (!response.ok) {
+        // 处理特定类型的错误
+        if (response.status === 409) {
+          throw new Error(`文件 "${this.fileName}" 已存在，请重命名后重试`);
+        } else if (response.status === 404) {
+          throw new Error('会话不存在或已过期，请重新上传');
+        } else if (response.status === 500) {
+          // 处理服务器内部错误
+          const errorMessage = result.error || '服务器内部错误';
+          const errorDetails = result.details || {};
+          console.error('服务器错误详情:', errorDetails);
+          throw new Error(`完成上传失败: ${errorMessage}`);
+        } else {
+          throw new Error(result.error || `完成上传失败: ${response.status}`);
+        }
+      }
+      
+      this._setStatus('completed');
+      this.onComplete(result);
+      
+    } catch (error) {
+      this._handleError(error);
+    }
   }
   
   /**
@@ -365,6 +368,10 @@ class ChunkedUploader {
         // 处理文件已存在的情况
         this.error.details = '文件已存在，请重命名后重试';
         this.error.status = 409;
+      } else if (error.message.includes('会话不存在') || error.message.includes('已过期')) {
+        // 处理会话过期的情况
+        this.error.details = '上传会话已过期，请重新上传';
+        this.error.status = 404;
       } else if (error.message.includes('游客上传已禁用') || error.message.includes('没有权限上传')) {
         // 处理权限错误
         this.error.details = '请登录后再试';
