@@ -242,8 +242,16 @@ class ChunkedUploader {
         // 重试
         chunk.retries++;
         console.log(`分块 ${chunk.index} 上传失败，正在重试 (${chunk.retries}/3)...`);
-        setTimeout(() => this._uploadNextChunk(), 1000);
+        
+        // 重置分块状态
+        chunk.status = 'pending';
+        chunk.error = null;
+        
+        // 延迟重试
+        await new Promise(resolve => setTimeout(resolve, 1000 * chunk.retries));
+        await this._uploadNextChunk();
       } else {
+        // 超过重试次数，取消整个上传
         this._handleError(new Error(`分块 ${chunk.index} 上传失败，超过最大重试次数`));
       }
     }
@@ -299,7 +307,8 @@ class ChunkedUploader {
       return total + this.chunks[index].size;
     }, 0);
     
-    this.progress = Math.round((uploadedSize / this.file.size) * 100) / 100;
+    // 确保进度不超过100%
+    this.progress = Math.min(Math.round((uploadedSize / this.file.size) * 100) / 100, 1);
     
     // 计算上传速度
     const elapsedSeconds = (Date.now() - this.uploadStartTime) / 1000;
