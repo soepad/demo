@@ -910,6 +910,12 @@ function initImageManagement() {
 async function initRepositoryManagement() {
     console.log('初始化仓库管理...');
     
+    // 检查是否在仓库管理页面
+    if (!window.location.pathname.includes('repositories.html')) {
+        console.log('不是仓库管理页面，跳过初始化');
+        return;
+    }
+    
     // 检查容器是否存在
     const container = document.getElementById('repositoriesContainer');
     if (!container) {
@@ -3089,7 +3095,18 @@ async function initAdmin() {
     console.log('DOM加载完成，开始初始化');
     
     // 检查登录状态
-    if (!checkLoginStatus()) {
+    const cookies = document.cookie.split(';');
+    let isLoggedIn = false;
+    for (let cookie of cookies) {
+        const [name, value] = cookie.trim().split('=');
+        if (name === 'session_id' && value) {
+            isLoggedIn = true;
+            break;
+        }
+    }
+    
+    if (!isLoggedIn) {
+        window.location.href = '/admin/login.html';
         return;
     }
     
