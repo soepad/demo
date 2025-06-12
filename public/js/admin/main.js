@@ -910,13 +910,6 @@ function initImageManagement() {
 async function initRepositoryManagement() {
     console.log('初始化仓库管理...');
     
-    // 等待 DOM 加载完成
-    if (document.readyState === 'loading') {
-        await new Promise(resolve => {
-            document.addEventListener('DOMContentLoaded', resolve);
-        });
-    }
-    
     // 检查容器是否存在
     const container = document.getElementById('repositoriesContainer');
     if (!container) {
@@ -3090,4 +3083,46 @@ async function syncRepositorySize(repoId, button) {
 document.addEventListener('DOMContentLoaded', () => {
     initRepositoryManagement();
 });
+
+// 初始化管理后台
+async function initAdmin() {
+    console.log('DOM加载完成，开始初始化');
+    
+    // 检查登录状态
+    if (!checkLoginStatus()) {
+        return;
+    }
+    
+    // 初始化导航
+    console.log('初始化导航');
+    initNavigation();
+    
+    // 加载分块上传模块
+    console.log('加载分块上传模块...');
+    await loadChunkedUploader();
+    console.log('分块上传模块加载完成');
+    
+    // 初始化控制面板
+    console.log('初始化控制面板');
+    await initDashboard();
+    
+    // 初始化图片管理
+    console.log('初始化图片管理');
+    await initImageManagement();
+    
+    // 初始化仓库管理
+    console.log('初始化仓库管理');
+    await initRepositoryManagement();
+    
+    // 初始化批量操作
+    console.log('初始化批量操作');
+    initBatchOperations();
+    
+    // 初始化系统设置
+    console.log('初始化系统设置');
+    await initSettings();
+}
+
+// 等待 DOM 加载完成后再初始化
+document.addEventListener('DOMContentLoaded', initAdmin);
 
