@@ -583,6 +583,9 @@ function initSettings() {
                     if (!response.error) {
                         console.log('图像处理设置保存成功');
                         showNotification('图像处理设置已保存', 'success');
+                        
+                        // 立即更新复选框状态
+                        document.getElementById('enableCompression').checked = enableCompression;
                     } else {
                         console.error('保存图像处理设置失败:', response.error);
                         showNotification('保存图像处理设置失败: ' + response.error, 'error');
