@@ -414,65 +414,33 @@ export async function checkRepositorySpaceAndAllocate(env, totalUploadSize) {
       }
     }
     
-    const remainingSpace = repoSizeThreshold - activeRepo.size_estimate;
+    // 计算上传后的总大小
+    const totalSize = activeRepo.size_estimate + totalUploadSize;
     
-    // 如果剩余空间足够
-    if (remainingSpace >= totalUploadSize) {
+    // 如果上传后总大小超过阈值，创建新仓库
+    if (totalSize > repoSizeThreshold) {
+      console.log(`当前仓库空间不足，创建新仓库: 当前=${activeRepo.size_estimate}, 上传=${totalUploadSize}, 阈值=${repoSizeThreshold}`);
+      const newRepo = await createNewRepository(env, activeRepo.name);
+      
       return {
         canUpload: true,
-        repository: {
-          id: activeRepo.id,
-          owner: activeRepo.owner || env.GITHUB_OWNER,
-          repo: activeRepo.name,
-          token: activeRepo.token || env.GITHUB_TOKEN,
-          deployHook: activeRepo.deploy_hook || env.DEPLOY_HOOK
-        },
-        needNewRepo: false
+        repository: newRepo,
+        needNewRepo: true
       };
     }
     
-    // 如果剩余空间不足，查找其他活跃仓库
-    const otherRepos = await env.DB.prepare(`
-      SELECT * FROM repositories 
-      WHERE status = 'active' AND id != ? 
-      ORDER BY priority ASC, id ASC
-    `).bind(activeRepo.id).all();
-    
-    // 如果有其他活跃仓库，检查是否有足够空间
-    for (const repo of otherRepos.results || []) {
-      const repoRemainingSpace = repoSizeThreshold - repo.size_estimate;
-      if (repoRemainingSpace >= totalUploadSize) {
-        return {
-          canUpload: true,
-          repository: {
-            id: repo.id,
-            owner: repo.owner || env.GITHUB_OWNER,
-            repo: repo.name,
-            token: repo.token || env.GITHUB_TOKEN,
-            deployHook: repo.deploy_hook || env.DEPLOY_HOOK
-          },
-          needNewRepo: false
-        };
-      }
-    }
-    
-    // 如果没有足够空间的仓库，创建新仓库
-    const newRepo = await createNewRepository(env, activeRepo.name);
-    
-    // 如果当前仓库接近阈值，更新其状态为不活跃
-    if (remainingSpace < totalUploadSize && remainingSpace < repoSizeThreshold * 0.1) {
-      await env.DB.prepare(`
-        UPDATE repositories SET status = 'inactive', updated_at = datetime('now', '+8 hours')
-        WHERE id = ?
-      `).bind(activeRepo.id).run();
-      
-      console.log(`仓库 ${activeRepo.name} 已接近大小阈值，状态更新为 'inactive'`);
-    }
-    
+    // 当前仓库有足够空间，继续使用
+    console.log(`使用当前仓库: ${activeRepo.name}, 当前=${activeRepo.size_estimate}, 上传=${totalUploadSize}, 阈值=${repoSizeThreshold}`);
     return {
       canUpload: true,
-      repository: newRepo,
-      needNewRepo: true
+      repository: {
+        id: activeRepo.id,
+        owner: activeRepo.owner || env.GITHUB_OWNER,
+        repo: activeRepo.name,
+        token: activeRepo.token || env.GITHUB_TOKEN,
+        deployHook: activeRepo.deploy_hook || env.DEPLOY_HOOK
+      },
+      needNewRepo: false
     };
   } catch (error) {
     console.error('检查仓库空间失败:', error);
