@@ -210,8 +210,8 @@ class ChunkedUploader {
       
       console.log(`上传分块 ${chunk.index}/${this.totalChunks}, 会话ID=${this.sessionId}`);
       
-      // 上传分块 - 使用相对路径
-      const response = await fetch('api/upload?action=chunk', {
+      // 上传分块 - 使用正确的API路径
+      const response = await fetch('/api/upload?action=chunk', {
         method: 'POST',
         body: formData
       });
@@ -272,7 +272,7 @@ class ChunkedUploader {
    */
   async _completeUpload() {
     try {
-      const response = await fetch('api/upload?action=complete', {
+      const response = await fetch('/api/upload?action=complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
