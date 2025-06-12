@@ -210,8 +210,8 @@ class ChunkedUploader {
       
       console.log(`上传分块 ${chunk.index}/${this.totalChunks}, 会话ID=${this.sessionId}`);
       
-      // 上传分块
-      const response = await fetch('/api/upload?action=chunk', {
+      // 上传分块 - 使用相对路径
+      const response = await fetch('api/upload?action=chunk', {
         method: 'POST',
         body: formData
       });
@@ -272,7 +272,7 @@ class ChunkedUploader {
    */
   async _completeUpload() {
     try {
-      const response = await fetch('/api/upload?action=complete', {
+      const response = await fetch('api/upload?action=complete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -293,6 +293,12 @@ class ChunkedUploader {
         // 处理特定类型的错误
         if (response.status === 409) {
           throw new Error(`文件 "${this.fileName}" 已存在，请重命名后重试`);
+        } else if (response.status === 500) {
+          // 处理服务器内部错误
+          const errorMessage = result.error || '服务器内部错误';
+          const errorDetails = result.details || {};
+          console.error('服务器错误详情:', errorDetails);
+          throw new Error(`完成上传失败: ${errorMessage}`);
         } else {
           throw new Error(result.error || `完成上传失败: ${response.status}`);
         }
