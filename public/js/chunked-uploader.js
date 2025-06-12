@@ -267,9 +267,6 @@ class ChunkedUploader {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sessionId: this.sessionId,
-          fileName: this.fileName,
-          fileSize: this.file.size,
-          mimeType: this.file.type,
           skipDeploy: this.skipDeploy
         })
       });
@@ -303,16 +300,19 @@ class ChunkedUploader {
    * 更新上传进度
    */
   _updateProgress() {
-    const uploadedSize = this.uploadedChunks.reduce((total, index) => {
-      return total + this.chunks[index].size;
-    }, 0);
+    // 计算已上传的分块数量
+    const uploadedChunks = this.uploadedChunks.length;
     
-    // 确保进度不超过100%
-    this.progress = Math.min(Math.round((uploadedSize / this.file.size) * 100) / 100, 1);
+    // 计算进度百分比
+    this.progress = Math.min(Math.round((uploadedChunks / this.totalChunks) * 100) / 100, 1);
     
     // 计算上传速度
     const elapsedSeconds = (Date.now() - this.uploadStartTime) / 1000;
     if (elapsedSeconds > 0) {
+      const uploadedSize = this.uploadedChunks.reduce((total, index) => {
+        return total + this.chunks[index].size;
+      }, 0);
+      
       this.uploadSpeed = uploadedSize / elapsedSeconds;
       
       // 计算剩余时间
@@ -324,7 +324,7 @@ class ChunkedUploader {
     
     this.onProgress({
       progress: this.progress,
-      uploadedSize: uploadedSize,
+      uploadedSize: this.uploadedChunks.reduce((total, index) => total + this.chunks[index].size, 0),
       totalSize: this.file.size,
       speed: this.uploadSpeed,
       remainingTime: this.remainingTime
