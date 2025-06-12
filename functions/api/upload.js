@@ -458,6 +458,8 @@ export async function onRequest(context) {
       // 设置过期时间 - 10分钟后
       sessionExpiry.set(sessionId, Date.now() + SESSION_EXPIRY_TIME);
       
+      console.log(`创建上传会话成功: ${sessionId}, 文件名=${fileName}, 大小=${fileSize}, 分块数=${totalChunks}`);
+      
       return new Response(JSON.stringify({
         success: true,
         sessionId,
