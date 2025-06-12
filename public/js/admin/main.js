@@ -410,7 +410,9 @@ function initSettings() {
                     const compressionQuality = document.getElementById('compressionQuality');
                     
                     if (enableCompression) {
-                        enableCompression.checked = settings.enable_compression === 'true';
+                        // 确保正确处理字符串值
+                        enableCompression.checked = settings.enable_compression === 'true' || settings.enable_compression === true;
+                        console.log('图像压缩设置:', settings.enable_compression, '复选框状态:', enableCompression.checked);
                     }
                     
                     if (compressionQuality) {
@@ -999,6 +1001,14 @@ function createRepositoryCard(repo) {
     card.innerHTML = `
         <div class="repo-header">
             <h3>${repo.name}</h3>
+            <div class="repo-actions">
+                <button class="btn btn-icon" onclick="showRepositoryDetails(${repo.id})" title="查看详情">
+                    <i class="fas fa-info-circle"></i>
+                </button>
+                <button class="btn btn-icon" onclick="activateRepository(${repo.id})" title="激活仓库">
+                    <i class="fas fa-check-circle"></i>
+                </button>
+            </div>
         </div>
         <div class="repo-info">
             <p><i class="fas fa-file"></i> ${fileCount} 个文件</p>
