@@ -2448,169 +2448,75 @@ function handleFiles(files) {
 
 // 处理上传选定的文件
 async function uploadSelectedFiles(files) {
-    console.log('开始上传选定的文件:', files.length, '个文件');
-    const progressBar = document.querySelector('.progress-fill');
+    const uploadArea = document.getElementById('uploadArea');
+    const progressBar = document.querySelector('.upload-progress');
+    const progressFill = document.querySelector('.progress-fill');
     const progressText = document.querySelector('.progress-text');
     const progressSpeed = document.querySelector('.progress-speed');
-    const uploadProgress = document.querySelector('.upload-progress');
     
-    // 确保进度条元素存在
-    if (!progressBar || !progressText || !progressSpeed || !uploadProgress) {
-        console.error('找不到进度条元素:', {
-            progressBar: !!progressBar,
-            progressText: !!progressText,
-            progressSpeed: !!progressSpeed,
-            uploadProgress: !!uploadProgress
-        });
-        showNotification('上传功能初始化失败', 'error');
+    if (!uploadArea || !progressBar || !progressFill || !progressText || !progressSpeed) {
+        console.error('未找到上传相关元素');
         return;
     }
     
-    // 隐藏文件列表和确认按钮
-    const modal = document.getElementById('uploadModal');
-    const fileList = modal.querySelector('.file-list');
-    const confirmBtn = modal.querySelector('.confirm-upload-btn');
+    // 显示进度条
+    uploadArea.style.display = 'none';
+    progressBar.style.display = 'block';
     
-    if (fileList) fileList.style.display = 'none';
-    if (confirmBtn) confirmBtn.style.display = 'none';
+    let totalSize = 0;
+    let uploadedSize = 0;
+    let startTime = Date.now();
     
-    // 显示进度条并重置
-    uploadProgress.style.display = 'block';
-    progressBar.style.width = '0%';
-    progressText.textContent = '0%';
-    progressSpeed.textContent = '0 KB/s';
-    
-    const totalFiles = files.length;
-    let uploadedCount = 0;
-    let successCount = 0;
-    let uploadedBytes = 0;
-    const totalBytes = Array.from(files).reduce((total, file) => total + file.size, 0);
-    const startTime = Date.now();
-    let needsRefresh = false;
-    
-    // 保持当前页面滚动位置
-    const scrollPos = window.scrollY;
-    
-    for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const isLastFile = i === files.length - 1; // 检查是否是最后一个文件
-        const skipDeploy = !isLastFile; // 除了最后一个文件，其他都跳过部署
-        
-        if (!file.type.startsWith('image/')) {
-            showNotification('只能上传图片文件', 'error');
-            continue;
-        }
-        
-        try {
-            console.log(`开始上传文件: ${file.name}, 类型: ${file.type}, 大小: ${file.size} 字节, 是否跳过部署: ${skipDeploy}`);
-            
-            // 定义文件大小阈值，超过此值使用分块上传
-            const CHUNK_SIZE_THRESHOLD = 5 * 1024 * 1024; // 5MB
-            
-            let result;
-            
-            if (file.size > CHUNK_SIZE_THRESHOLD && window.ChunkedUploader) {
-                // 大文件，使用分块上传
-                console.log(`文件大小超过${formatFileSize(CHUNK_SIZE_THRESHOLD)}，使用分块上传`);
-                result = await uploadLargeFileWithChunks(file, (progress) => {
-                    // 计算总体进度 (已上传完成的文件 + 当前文件的进度)
-                    const currentFileContribution = progress.uploadedSize / totalBytes;
-                    const completedFilesContribution = uploadedBytes / totalBytes;
-                    const overallProgress = completedFilesContribution + currentFileContribution;
-                    const percent = Math.min(100, Math.round(overallProgress * 100));
-                    
-                    // 更新进度条
-                    progressBar.style.width = percent + '%';
-                    progressText.textContent = percent + '%';
-                    
-                    // 计算上传速度
-                    const elapsedSeconds = (Date.now() - startTime) / 1000;
-                    if (elapsedSeconds > 0) {
-                        const speed = (uploadedBytes + progress.uploadedSize) / elapsedSeconds;
-                        progressSpeed.textContent = formatFileSize(speed, 2) + '/s';
-                    }
-                }, skipDeploy); // 传递skipDeploy参数
-            } else {
-                // 使用普通上传方式
-                console.log(`使用普通上传方式`);
-                result = await uploadFileWithProgress(file, (loaded, total) => {
-                // 更新当前文件的进度
-                const currentFileProgress = loaded / total;
-                
-                // 计算总体进度 (已上传完成的文件 + 当前文件的进度)
-                const overallProgress = (uploadedBytes + loaded) / totalBytes;
-                const percent = Math.min(100, Math.round(overallProgress * 100));
-                
-                // 更新进度条
-                progressBar.style.width = percent + '%';
-                progressText.textContent = percent + '%';
-                    
-                // 计算上传速度
-                const elapsedSeconds = (Date.now() - startTime) / 1000;
-                if (elapsedSeconds > 0) {
-                    const speed = (uploadedBytes + loaded) / elapsedSeconds;
-                    progressSpeed.textContent = formatFileSize(speed, 2) + '/s';
-                }
-            }, skipDeploy); // 添加skipDeploy参数
-            }
-            
-            uploadedCount++;
-            uploadedBytes += file.size;
-            
-            if (result.success) {
-                successCount++;
-                needsRefresh = true;
-                showNotification(`${file.name} 上传成功`, 'success', 2000);
-                // 不再每次都刷新图片列表，延迟到所有文件上传完成后
-            } else {
-                showNotification(`上传失败: ${result.error || '未知错误'}`, 'error');
-            }
-        } catch (error) {
-            console.error('上传文件失败:', error);
-            showNotification(`上传失败: ${error.message}`, 'error');
-        }
+    // 计算总大小
+    for (const file of files) {
+        totalSize += file.size;
     }
     
-    // 上传完成后操作
-    console.log('所有文件上传完成');
+    // 更新进度条
+    function updateProgress(uploaded) {
+        uploadedSize += uploaded;
+        const percent = Math.round((uploadedSize / totalSize) * 100);
+        progressFill.style.width = `${percent}%`;
+        progressText.textContent = `${percent}%`;
+        
+        // 计算上传速度
+        const elapsedTime = (Date.now() - startTime) / 1000; // 转换为秒
+        const speed = uploadedSize / elapsedTime; // 字节/秒
+        progressSpeed.textContent = `${formatSize(speed)}/s`;
+    }
     
-    // 隐藏进度条
-    uploadProgress.style.display = 'none';
-    
-    // 重置上传表单
-    document.getElementById('fileInput').value = '';
-    
-    // 重新显示上传区域
-    const uploadArea = document.getElementById('uploadArea');
-    if (uploadArea) {
+    try {
+        for (const file of files) {
+            await uploadFileWithProgress(file, updateProgress);
+        }
+        
+        // 上传完成后，更新仓库统计信息
+        const repoGrid = document.getElementById('repoGrid');
+        if (repoGrid) {
+            // 重新加载仓库列表以更新统计信息
+            await loadRepositories();
+        }
+        
+        // 更新仪表盘统计信息
+        await updateDashboardStats();
+        
+        // 如果当前在图片管理页面，重新加载图片列表
+        const imageGrid = document.getElementById('imageGrid');
+        if (imageGrid) {
+            await loadImages();
+        }
+        
+        showNotification('文件上传成功', 'success');
+    } catch (error) {
+        console.error('上传文件失败:', error);
+        showNotification('上传文件失败: ' + error.message, 'error');
+    } finally {
+        // 重置上传状态
         uploadArea.style.display = 'block';
-    }
-    
-    // 移除文件列表和确认按钮
-    if (fileList) fileList.remove();
-    if (confirmBtn) confirmBtn.remove();
-    
-    // 仅在所有文件上传完成后刷新一次图片列表和控制面板
-    if (needsRefresh) {
-        console.log('刷新图片列表和控制面板');
-        loadImages(1);
-        updateDashboardStats();
-    }
-    
-    // 如果全部上传成功，关闭模态框
-    if (uploadedCount === totalFiles && successCount > 0) {
-        setTimeout(() => {
-            modal.style.display = 'none';
-            
-            // 尝试恢复滚动位置
-            setTimeout(() => {
-                window.scrollTo(0, scrollPos);
-            }, 100);
-        }, 1500);
-    }
-    
-    if (successCount > 0) {
-        showNotification(`成功上传了 ${successCount} 个文件`, 'success');
+        progressBar.style.display = 'none';
+        progressFill.style.width = '0%';
+        progressText.textContent = '0%';
+        progressSpeed.textContent = '0 KB/s';
     }
 }
 
