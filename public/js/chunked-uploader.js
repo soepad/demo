@@ -319,8 +319,9 @@ class ChunkedUploader {
     // 计算已上传的分块数量
     const uploadedChunks = this.uploadedChunks.length;
     
-    // 计算进度百分比
-    this.progress = Math.min(Math.round((uploadedChunks / this.totalChunks) * 100) / 100, 1);
+    // 计算进度百分比 - 使用已上传分块数量除以总分块数
+    const progress = uploadedChunks / this.totalChunks;
+    this.progress = Math.min(Math.round(progress * 100) / 100, 1);
     
     // 计算上传速度
     const elapsedSeconds = (Date.now() - this.uploadStartTime) / 1000;
