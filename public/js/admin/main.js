@@ -920,9 +920,8 @@ async function initRepositoryManagement() {
     // 检查容器是否存在
     const container = document.getElementById('repositoriesContainer');
     if (!container) {
-        console.error('未找到仓库容器元素，等待 1 秒后重试...');
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return initRepositoryManagement();
+        console.error('未找到仓库容器元素');
+        return;
     }
     
     console.log('找到仓库容器元素，开始加载仓库列表...');
@@ -3086,4 +3085,9 @@ async function syncRepositorySize(repoId, button) {
         button.innerHTML = '<i class="bi bi-arrow-repeat"></i> 同步大小';
     }
 }
+
+// 等待 DOM 加载完成后再初始化
+document.addEventListener('DOMContentLoaded', () => {
+    initRepositoryManagement();
+});
 
