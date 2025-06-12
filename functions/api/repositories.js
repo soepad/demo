@@ -123,7 +123,7 @@ async function syncRepositorySize(env, repoId) {
     console.log(`当前仓库实际大小: ${actualSize} 字节 (${Math.round(actualSize / (1024 * 1024))}MB)`);
     
     // 如果达到或超过阈值，更新状态
-    if (actualSize >= repoSizeThreshold && repo.status !== 'full') {
+    if (actualSize >= repoSizeThreshold) {
       await env.DB.prepare(`
         UPDATE repositories SET status = 'full', updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
