@@ -907,15 +907,102 @@ function initImageManagement() {
 }
 
 // 初始化仓库管理功能
-function initRepositoryManagement() {
-    const createRepoBtn = document.getElementById('createRepoBtn');
-    if (createRepoBtn) {
-        createRepoBtn.addEventListener('click', showCreateRepositoryModal);
+async function initRepositoryManagement() {
+    console.log('初始化仓库管理...');
+    
+    // 等待 DOM 加载完成
+    if (document.readyState === 'loading') {
+        await new Promise(resolve => {
+            document.addEventListener('DOMContentLoaded', resolve);
+        });
     }
     
-    // 初始加载仓库列表
-    loadRepositories();
+    // 检查容器是否存在
+    const container = document.getElementById('repositoriesContainer');
+    if (!container) {
+        console.error('未找到仓库容器元素，等待 1 秒后重试...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return initRepositoryManagement();
     }
+    
+    console.log('找到仓库容器元素，开始加载仓库列表...');
+    
+    // 加载仓库列表
+    await loadRepositories();
+    
+    // 添加创建仓库按钮事件监听
+    const createRepoBtn = document.getElementById('createRepoBtn');
+    if (createRepoBtn) {
+        createRepoBtn.addEventListener('click', () => {
+            const createRepoModal = new bootstrap.Modal(document.getElementById('createRepoModal'));
+            createRepoModal.show();
+        });
+    }
+    
+    // 添加确认创建仓库按钮事件监听
+    const confirmCreateRepo = document.getElementById('confirmCreateRepo');
+    if (confirmCreateRepo) {
+        confirmCreateRepo.addEventListener('click', async () => {
+            const baseRepoName = document.getElementById('baseRepoName').value;
+            if (!baseRepoName) {
+                showToast('error', '请输入基础仓库名称');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/repositories', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: baseRepoName })
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '创建仓库失败');
+                }
+                
+                showToast('success', '创建仓库成功');
+                const modal = bootstrap.Modal.getInstance(document.getElementById('createRepoModal'));
+                modal.hide();
+                await loadRepositories();
+            } catch (error) {
+                console.error('创建仓库失败:', error);
+                showToast('error', `创建失败: ${error.message}`);
+            }
+        });
+    }
+    
+    // 添加同步所有仓库大小按钮事件监听
+    const syncAllSizesBtn = document.getElementById('syncAllSizesBtn');
+    if (syncAllSizesBtn) {
+        syncAllSizesBtn.addEventListener('click', async () => {
+            try {
+                syncAllSizesBtn.disabled = true;
+                syncAllSizesBtn.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> 同步中...';
+                
+                const response = await fetch('/api/repositories/sync-all-sizes', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || '同步失败');
+                }
+                
+                showToast('success', '同步所有仓库大小成功');
+                await loadRepositories();
+            } catch (error) {
+                console.error('同步所有仓库大小失败:', error);
+                showToast('error', `同步失败: ${error.message}`);
+            } finally {
+                syncAllSizesBtn.disabled = false;
+                syncAllSizesBtn.innerHTML = '<i class="bi bi-arrow-repeat"></i> 同步所有仓库大小';
+            }
+        });
+    }
+}
     
     // 加载仓库列表
     async function loadRepositories() {
