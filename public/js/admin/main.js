@@ -2861,3 +2861,66 @@ function formatSize(bytes) {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
+// 显示创建仓库模态框
+function showCreateRepositoryModal() {
+    const modal = document.getElementById('createRepoModal');
+    if (modal) {
+        modal.style.display = 'block';
+    }
+}
+
+// 关闭创建仓库模态框
+function closeCreateRepositoryModal() {
+    const modal = document.getElementById('createRepoModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// 创建新仓库
+async function createRepository() {
+    const nameInput = document.getElementById('repoName');
+    const descriptionInput = document.getElementById('repoDescription');
+    const errorElement = document.getElementById('createRepoError');
+    
+    if (!nameInput || !descriptionInput || !errorElement) return;
+    
+    const name = nameInput.value.trim();
+    const description = descriptionInput.value.trim();
+    
+    if (!name) {
+        errorElement.textContent = '请输入仓库名称';
+        return;
+    }
+    
+    try {
+        const response = await safeApiCall('/api/repositories', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ name, description })
+        });
+        
+        if (response.error) {
+            throw new Error(response.error);
+        }
+        
+        // 关闭模态框
+        closeCreateRepositoryModal();
+        
+        // 清空输入框
+        nameInput.value = '';
+        descriptionInput.value = '';
+        errorElement.textContent = '';
+        
+        // 重新加载仓库列表
+        await loadRepositories();
+        
+        showNotification('仓库创建成功', 'success');
+    } catch (error) {
+        console.error('创建仓库失败:', error);
+        errorElement.textContent = error.message || '创建仓库失败';
+    }
+}
+
