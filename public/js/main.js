@@ -314,8 +314,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                             }
                         },
                         // 错误处理回调
-                        onError: (error) => {
-                            showToast(error.message || '上传失败');
+                        onError: async (error) => {
+                            if (error.message && error.message.includes('仓库已达到阈值')) {
+                                try {
+                                    const response = await fetch('/api/repositories?action=create', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' }
+                                    });
+                                    if (!response.ok) {
+                                        throw new Error('创建新仓库失败');
+                                    }
+                                    const result = await response.json();
+                                    if (!result.success) {
+                                        throw new Error(result.error || '创建新仓库失败');
+                                    }
+                                    await uploadFiles(files);
+                                } catch (err) {
+                                    showToast(err.message || '创建新仓库失败');
+                                }
+                            } else {
+                                showToast(error.message || '上传失败');
+                            }
                         }
                     });
                     
@@ -354,11 +373,51 @@ document.addEventListener('DOMContentLoaded', async () => {
                             showResult(uploadedResults);
                         }
                     } else {
+                        if (result.error && result.error.includes('仓库已达到阈值')) {
+                            try {
+                                const response = await fetch('/api/repositories?action=create', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' }
+                                });
+                                if (!response.ok) {
+                                    throw new Error('创建新仓库失败');
+                                }
+                                const result = await response.json();
+                                if (!result.success) {
+                                    throw new Error(result.error || '创建新仓库失败');
+                                }
+                                await uploadFiles(files);
+                                return;
+                            } catch (err) {
+                                showToast(err.message || '创建新仓库失败');
+                                return;
+                            }
+                        }
                         showToast(result.error || '上传失败');
                     }
                 }
                 
             } catch (error) {
+                if (error.message && error.message.includes('仓库已达到阈值')) {
+                    try {
+                        const response = await fetch('/api/repositories?action=create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        if (!response.ok) {
+                            throw new Error('创建新仓库失败');
+                        }
+                        const result = await response.json();
+                        if (!result.success) {
+                            throw new Error(result.error || '创建新仓库失败');
+                        }
+                        await uploadFiles(files);
+                        return;
+                    } catch (err) {
+                        showToast(err.message || '创建新仓库失败');
+                        return;
+                    }
+                }
                 showToast(error.message);
             }
         }
