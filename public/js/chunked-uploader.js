@@ -177,6 +177,8 @@ class ChunkedUploader {
       if (!this.sessionId) {
         throw new Error('服务器未返回有效的会话ID');
       }
+      
+      console.log('创建上传会话成功:', this.sessionId);
     } catch (error) {
       throw error;
     }
@@ -206,6 +208,8 @@ class ChunkedUploader {
       formData.append('chunkIndex', chunk.index);
       formData.append('totalChunks', this.totalChunks);
       
+      console.log(`上传分块 ${chunk.index}/${this.totalChunks}, 会话ID=${this.sessionId}`);
+      
       // 上传分块
       const response = await fetch('/api/upload?action=chunk', {
         method: 'POST',
@@ -219,6 +223,12 @@ class ChunkedUploader {
           errorText = errorJson.error || errorText;
         } catch (e) {}
         throw new Error(`上传分块失败: ${errorText}`);
+      }
+      
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || '上传分块失败');
       }
       
       // 处理成功的分块上传
