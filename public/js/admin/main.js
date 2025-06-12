@@ -942,6 +942,19 @@ async function loadRepositories() {
         const repositories = response.data || [];
         console.log('获取到仓库列表:', repositories);
         
+        // 获取每个仓库的统计信息
+        for (const repo of repositories) {
+            try {
+                const statsResponse = await safeApiCall(`/api/repositories/${repo.id}/stats`);
+                if (!statsResponse.error) {
+                    repo.file_count = statsResponse.data.file_count || 0;
+                    repo.total_size = statsResponse.data.total_size || 0;
+                }
+            } catch (error) {
+                console.error(`获取仓库 ${repo.id} 统计信息失败:`, error);
+            }
+        }
+        
         container.innerHTML = '';
         
         if (repositories.length === 0) {
