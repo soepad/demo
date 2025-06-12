@@ -9,79 +9,21 @@ import { updateReposVariable } from './cf-manager';
  */
 export async function getActiveRepository(env) {
   try {
-    // 查询数据库中的活跃仓库
-    const repo = await env.DB.prepare(`
+    // 获取活跃仓库
+    const activeRepo = await env.DB.prepare(`
       SELECT * FROM repositories 
       WHERE status = 'active' 
-      ORDER BY priority ASC, id ASC 
+      ORDER BY priority DESC, created_at ASC 
       LIMIT 1
     `).first();
     
-    // 如果没有找到活跃仓库
-    if (!repo) {
-      console.log('没有找到活跃仓库，尝试创建默认仓库');
-      
-      // 检查是否有环境变量定义的仓库信息
-      if (env.GITHUB_REPO && env.GITHUB_OWNER) {
-        // 创建默认仓库记录
-        await env.DB.prepare(`
-          INSERT INTO repositories (name, owner, status, is_default, priority)
-          VALUES (?, ?, 'active', 1, 0)
-        `).bind(env.GITHUB_REPO, env.GITHUB_OWNER).run();
-        
-        // 更新设置
-        await env.DB.prepare(`
-          INSERT OR REPLACE INTO settings (key, value, updated_at)
-          VALUES ('initial_repository_name', ?, CURRENT_TIMESTAMP)
-        `).bind(env.GITHUB_REPO).run();
-        
-        await env.DB.prepare(`
-          INSERT OR REPLACE INTO settings (key, value, updated_at)
-          VALUES ('initial_repository_owner', ?, CURRENT_TIMESTAMP)
-        `).bind(env.GITHUB_OWNER).run();
-        
-        // 重新查询
-        const newRepo = await env.DB.prepare(`
-          SELECT * FROM repositories 
-          WHERE name = ? AND owner = ?
-        `).bind(env.GITHUB_REPO, env.GITHUB_OWNER).first();
-        
-        if (newRepo) {
-          return {
-            id: newRepo.id,
-            owner: newRepo.owner,
-            repo: newRepo.name,
-            token: newRepo.token || env.GITHUB_TOKEN,
-            deployHook: newRepo.deploy_hook || env.DEPLOY_HOOK
-          };
-        }
-      }
-      
-      throw new Error('没有可用的活跃仓库，且无法创建默认仓库');
+    if (!activeRepo) {
+      throw new Error('没有可用的活跃仓库');
     }
     
-    // 返回仓库信息
-    return {
-      id: repo.id,
-      owner: repo.owner || env.GITHUB_OWNER,
-      repo: repo.name,
-      token: repo.token || env.GITHUB_TOKEN,
-      deployHook: repo.deploy_hook || env.DEPLOY_HOOK
-    };
+    return activeRepo;
   } catch (error) {
     console.error('获取活跃仓库失败:', error);
-    
-    // 回退到环境变量
-    if (env.GITHUB_REPO && env.GITHUB_OWNER) {
-      return {
-        id: null,
-        owner: env.GITHUB_OWNER,
-        repo: env.GITHUB_REPO,
-        token: env.GITHUB_TOKEN,
-        deployHook: env.DEPLOY_HOOK
-      };
-    }
-    
     throw error;
   }
 }
@@ -279,7 +221,7 @@ export async function createNewRepository(env, currentRepoName) {
       
       const result = await env.DB.prepare(`
         INSERT INTO repositories (name, owner, status, priority, created_at, updated_at)
-        VALUES (?, ?, 'active', 0, datetime('now', '+8 hours'), datetime('now', '+8 hours'))
+        VALUES (?, ?, 'active', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `).bind(newRepoName, env.GITHUB_OWNER).run();
       
       console.log('数据库插入结果:', result);
@@ -398,7 +340,7 @@ export async function updateRepositorySizeEstimate(env, repositoryId, fileSize) 
       UPDATE repositories 
       SET size_estimate = size_estimate + ?, 
           file_count = file_count + 1,
-          updated_at = datetime('now', '+8 hours')
+          updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(fileSize, repositoryId).run();
     
@@ -452,7 +394,7 @@ export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize
     // 更新仓库大小估算
     await env.DB.prepare(`
       UPDATE repositories 
-      SET size_estimate = ?, updated_at = datetime('now', '+8 hours')
+      SET size_estimate = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(newSize, repositoryId).run();
     
@@ -475,7 +417,7 @@ export async function decreaseRepositorySizeEstimate(env, repositoryId, fileSize
       console.log(`仓库 ${repo.name} 大小现在低于阈值的90%，更新状态为 'active'`);
       
       await env.DB.prepare(`
-        UPDATE repositories SET status = 'active', updated_at = datetime('now', '+8 hours')
+        UPDATE repositories SET status = 'active', updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `).bind(repositoryId).run();
     }
@@ -775,5 +717,24 @@ export async function triggerAllRepositoriesDeployHooks(env) {
       error: error.message,
       results
     };
+  }
+}
+
+async function updateRepositoryStatus(env, repoId, status) {
+  try {
+    const result = await env.DB.prepare(`
+      UPDATE repositories 
+      SET status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `).bind(status, repoId).run();
+    
+    if (!result.success) {
+      throw new Error('更新仓库状态失败');
+    }
+    
+    return { success: true };
+  } catch (error) {
+    console.error('更新仓库状态失败:', error);
+    throw error;
   }
 } 
