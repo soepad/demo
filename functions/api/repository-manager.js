@@ -469,57 +469,17 @@ export async function updateRepositorySizeEstimate(env, repositoryId, fileSize) 
       WHERE id = ?
     `).bind(fileSize, repositoryId).run();
     
-    // 检查是否达到阈值
-    const thresholdSetting = await env.DB.prepare(`
-      SELECT value FROM settings WHERE key = 'repository_size_threshold'
-    `).first();
-    
-    // 确保解析为整数，使用默认值900MB如果没有设置
-    const repoSizeThreshold = thresholdSetting && !isNaN(parseInt(thresholdSetting.value)) ? 
-      parseInt(thresholdSetting.value) : 
-      900 * 1024 * 1024; // 默认900MB
-    
-    console.log(`使用仓库大小阈值: ${repoSizeThreshold} 字节 (${Math.round(repoSizeThreshold / (1024 * 1024))}MB)`);
-    
     // 获取更新后的仓库信息
     const repo = await env.DB.prepare(`
       SELECT * FROM repositories WHERE id = ?
     `).bind(repositoryId).first();
     
-    let newRepoCreated = false;
-    
-    // 如果达到或超过阈值，更新状态为不活跃
-    if (repo && repo.size_estimate >= repoSizeThreshold && repo.status === 'active') {
-      console.log(`仓库 ${repo.name} 已达到大小阈值 ${Math.round(repoSizeThreshold / (1024 * 1024))}MB，状态更新为 'inactive'`);
-      
-      // 更新当前仓库状态为不活跃
-      await env.DB.prepare(`
-        UPDATE repositories SET status = 'inactive', updated_at = datetime('now', '+8 hours')
-        WHERE id = ?
-      `).bind(repositoryId).run();
-      
-      // 尝试创建新仓库并设置为活跃
-      try {
-        const nameTemplateSetting = await env.DB.prepare(`
-          SELECT value FROM settings WHERE key = 'repository_name_template'
-        `).first();
-        
-        let baseName = nameTemplateSetting?.value || repo.name;
-        
-        // 创建新仓库
-        const newRepo = await createNewRepository(env, baseName);
-        newRepoCreated = true;
-        
-        console.log(`已自动创建新仓库: ${newRepo.repo}`);
-      } catch (createError) {
-        console.error('自动创建新仓库失败:', createError);
-      }
-    }
+    console.log(`仓库 ${repo.name} 大小已更新: +${fileSize} 字节, 当前大小: ${repo.size_estimate} 字节`);
     
     return {
       updated: true,
-      newRepoCreated,
-      repositoryId
+      repositoryId,
+      currentSize: repo.size_estimate
     };
   } catch (error) {
     console.error('更新仓库大小估算失败:', error);
