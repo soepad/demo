@@ -914,16 +914,24 @@ function initRepositoryManagement() {
 
 // 加载仓库列表
 async function loadRepositories() {
+    const container = document.getElementById('repositoriesContainer');
+    if (!container) return;
+    
     try {
+        // 显示加载状态
+        container.innerHTML = `
+            <div class="loading-indicator">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>正在加载仓库列表...</span>
+            </div>
+        `;
+        
         const response = await safeApiCall('/api/repositories');
         if (response.error) {
             throw new Error(response.error);
         }
         
-        const repositories = response.data;
-        const container = document.getElementById('repositoriesContainer');
-        if (!container) return;
-        
+        const repositories = response.data || [];
         container.innerHTML = '';
         
         if (repositories.length === 0) {
@@ -945,7 +953,16 @@ async function loadRepositories() {
         });
     } catch (error) {
         console.error('加载仓库列表失败:', error);
-        showNotification('加载仓库列表失败: ' + error.message, 'error');
+        container.innerHTML = `
+            <div class="error-state">
+                <i class="fas fa-exclamation-triangle"></i>
+                <p>加载仓库列表失败</p>
+                <p class="error-message">${error.message}</p>
+                <button class="btn btn-secondary" onclick="loadRepositories()">
+                    <i class="fas fa-redo"></i> 重试
+                </button>
+            </div>
+        `;
     }
 }
 
