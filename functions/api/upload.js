@@ -243,9 +243,6 @@ export async function onRequest(context) {
       
       console.log(`文件上传到GitHub成功，SHA: ${response.data.content.sha}`);
       
-      // 更新仓库大小估算
-      await updateRepositorySizeEstimate(env, repository.id, file.size);
-      
       // 保存到数据库 - 使用北京时间而不是UTC时间
       try {
         // 获取当前北京时间的格式字符串
@@ -261,19 +258,55 @@ export async function onRequest(context) {
         const beijingSecond = String(beijingTime.getUTCSeconds()).padStart(2, '0');
         const beijingTimeString = `${beijingYear}-${beijingMonth}-${beijingDay} ${beijingHour}:${beijingMinute}:${beijingSecond}`;
         
-        await env.DB.prepare(`
-          INSERT INTO images (filename, size, mime_type, github_path, sha, created_at, updated_at, repository_id)
-          VALUES (?, ?, ?, ?, ?, datetime(?), datetime(?), ?)
-        `).bind(
-          fileName,
-          file.size,
-          file.type,
-          filePath,
-          response.data.content.sha,
-          beijingTimeString,
-          beijingTimeString,
-          repository.id
-        ).run();
+        // 先检查文件是否已存在
+        const existingFile = await env.DB.prepare(`
+          SELECT id FROM images 
+          WHERE filename = ? AND repository_id = ?
+        `).bind(fileName, repository.id).first();
+        
+        if (existingFile) {
+          // 更新现有文件
+          await env.DB.prepare(`
+            UPDATE images 
+            SET size = ?, 
+                mime_type = ?, 
+                github_path = ?, 
+                sha = ?, 
+                updated_at = datetime(?)
+            WHERE id = ?
+          `).bind(
+            file.size,
+            file.type,
+            filePath,
+            response.data.content.sha,
+            beijingTimeString,
+            existingFile.id
+          ).run();
+        } else {
+          // 插入新文件
+          await env.DB.prepare(`
+            INSERT INTO images (
+              filename, 
+              size, 
+              mime_type, 
+              github_path, 
+              sha, 
+              created_at, 
+              updated_at, 
+              repository_id
+            )
+            VALUES (?, ?, ?, ?, ?, datetime(?), datetime(?), ?)
+          `).bind(
+            fileName,
+            file.size,
+            file.type,
+            filePath,
+            response.data.content.sha,
+            beijingTimeString,
+            beijingTimeString,
+            repository.id
+          ).run();
+        }
         
         console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeString}`);
       } catch (dbError) {
@@ -686,6 +719,77 @@ export async function onRequest(context) {
           content: base64Data,
           branch: 'main'
         });
+        
+        // 保存到数据库 - 使用北京时间而不是UTC时间
+        try {
+          // 获取当前北京时间的格式字符串
+          const now = new Date();
+          const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+          
+          // 使用getUTC*方法正确格式化北京时间
+          const beijingYear = beijingTime.getUTCFullYear();
+          const beijingMonth = String(beijingTime.getUTCMonth() + 1).padStart(2, '0');
+          const beijingDay = String(beijingTime.getUTCDate()).padStart(2, '0');
+          const beijingHour = String(beijingTime.getUTCHours()).padStart(2, '0');
+          const beijingMinute = String(beijingTime.getUTCMinutes()).padStart(2, '0');
+          const beijingSecond = String(beijingTime.getUTCSeconds()).padStart(2, '0');
+          const beijingTimeString = `${beijingYear}-${beijingMonth}-${beijingDay} ${beijingHour}:${beijingMinute}:${beijingSecond}`;
+          
+          // 先检查文件是否已存在
+          const existingFile = await env.DB.prepare(`
+            SELECT id FROM images 
+            WHERE filename = ? AND repository_id = ?
+          `).bind(uploadFileName, repository.id).first();
+          
+          if (existingFile) {
+            // 更新现有文件
+            await env.DB.prepare(`
+              UPDATE images 
+              SET size = ?, 
+                  mime_type = ?, 
+                  github_path = ?, 
+                  sha = ?, 
+                  updated_at = datetime(?)
+              WHERE id = ?
+            `).bind(
+              session.fileSize,
+              session.mimeType,
+              filePath,
+              response.data.content.sha,
+              beijingTimeString,
+              existingFile.id
+            ).run();
+          } else {
+            // 插入新文件
+            await env.DB.prepare(`
+              INSERT INTO images (
+                filename, 
+                size, 
+                mime_type, 
+                github_path, 
+                sha, 
+                created_at, 
+                updated_at, 
+                repository_id
+              )
+              VALUES (?, ?, ?, ?, ?, datetime(?), datetime(?), ?)
+            `).bind(
+              uploadFileName,
+              session.fileSize,
+              session.mimeType,
+              filePath,
+              response.data.content.sha,
+              beijingTimeString,
+              beijingTimeString,
+              repository.id
+            ).run();
+          }
+          
+          console.log(`文件信息已保存到数据库，上传时间(北京): ${beijingTimeString}`);
+        } catch (dbError) {
+          console.error('数据库保存失败:', dbError);
+          // 继续执行，不因为数据库错误而中断响应
+        }
         
         // 清理会话数据
         uploadSessions.delete(sessionId);
