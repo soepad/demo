@@ -1011,12 +1011,10 @@ function createRepositoryCard(repo) {
         <div class="repo-info">
             <p><i class="fas fa-file"></i> ${fileCount} 个文件</p>
             <p><i class="fas fa-hdd"></i> ${formattedSize} / ${formattedThreshold}(阈值)</p>
+            <p><i class="fas fa-clock"></i> 创建于 ${formatDate(repo.created_at)}</p>
             <div class="progress-bar">
                 <div class="progress" style="width: ${usagePercent}%"></div>
             </div>
-        </div>
-        <div class="repo-footer">
-            <p><i class="fas fa-clock"></i> 创建于 ${formatDate(repo.created_at)}</p>
         </div>
     `;
     
