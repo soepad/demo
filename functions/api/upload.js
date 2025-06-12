@@ -544,9 +544,11 @@ export async function onRequest(context) {
   
   // 完成上传
   if (action === 'complete' && request.method === 'POST') {
+    let sessionId = null;
     try {
       const requestData = await request.json();
-      const { sessionId, skipDeploy } = requestData;
+      sessionId = requestData.sessionId;
+      const skipDeploy = requestData.skipDeploy;
       
       console.log(`接收到完成上传请求: 会话ID=${sessionId}, 是否跳过部署=${skipDeploy}`);
       
@@ -567,6 +569,7 @@ export async function onRequest(context) {
       // 验证会话是否存在
       const session = uploadSessions.get(sessionId);
       if (!session) {
+        console.error(`会话不存在: ${sessionId}`);
         return new Response(JSON.stringify({
           success: false,
           error: '会话不存在或已过期'
@@ -581,9 +584,23 @@ export async function onRequest(context) {
       
       // 获取分块数据
       const chunks = sessionChunks.get(sessionId);
+      if (!chunks) {
+        console.error(`分块数据不存在: ${sessionId}`);
+        return new Response(JSON.stringify({
+          success: false,
+          error: '分块数据不存在或已过期'
+        }), {
+          status: 404,
+          headers: {
+            'Content-Type': 'application/json',
+            ...corsHeaders
+          }
+        });
+      }
       
       // 验证是否所有分块都已上传
       if (chunks.size !== session.totalChunks) {
+        console.error(`分块不完整: ${sessionId}, 已上传=${chunks.size}, 总数=${session.totalChunks}`);
         return new Response(JSON.stringify({
           success: false,
           error: '文件分块不完整，请重新上传',
@@ -605,6 +622,9 @@ export async function onRequest(context) {
       let offset = 0;
       for (let i = 0; i < session.totalChunks; i++) {
         const chunkBuffer = chunks.get(i);
+        if (!chunkBuffer) {
+          throw new Error(`分块 ${i} 数据不存在`);
+        }
         mergedBuffer.set(new Uint8Array(chunkBuffer), offset);
         offset += chunkBuffer.byteLength;
       }
@@ -751,8 +771,9 @@ export async function onRequest(context) {
             hasRepo: !!env.GITHUB_REPO,
             hasDB: !!env.DB
           },
-          sessionExists: !!uploadSessions.get(sessionId),
-          chunksCount: sessionChunks.get(sessionId)?.size || 0
+          sessionExists: sessionId ? !!uploadSessions.get(sessionId) : false,
+          chunksCount: sessionId ? sessionChunks.get(sessionId)?.size || 0 : 0,
+          sessionData: sessionId ? uploadSessions.get(sessionId) : null
         }
       }), {
         status: 500,
