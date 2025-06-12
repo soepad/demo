@@ -2893,41 +2893,7 @@ async function updateRepositoryFileCount(repoId) {
     }
 }
 
-// 修改批量删除函数，添加文件数更新
-async function batchDeleteImages() {
-    try {
-        const response = await safeApiCall('/api/images/batch-delete', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ imageIds })
-        });
 
-        if (response.error) {
-            throw new Error(response.error);
-        }
-
-        // 更新仓库文件数
-        const affectedRepos = new Set();
-        for (const imageId of imageIds) {
-            const image = await getImageDetails(imageId);
-            if (image && image.repository_id) {
-                affectedRepos.add(image.repository_id);
-            }
-        }
-
-        // 更新所有受影响的仓库文件数
-        for (const repoId of affectedRepos) {
-            await updateRepositoryFileCount(repoId);
-        }
-
-        return response;
-    } catch (error) {
-        console.error('批量删除失败:', error);
-        throw error;
-    }
-}
 // 格式化文件大小显示
 function formatSize(bytes) {
     if (bytes === 0) return '0 B';
