@@ -191,13 +191,11 @@
                     </div>
 
                     <!-- 创建仓库表单 -->
-                    <div class="repository-form" style="margin-bottom: 20px; padding: 15px; background-color: #f8f9fa; border-radius: 5px;">
-                        <div class="settings-header">
-                            <h4><i class="fas fa-plus-circle"></i> 创建新仓库</h4>
+                    <div class="settings-card" style="margin-top: 20px;">
+                        <h3>创建新仓库</h3>
                             <button class="btn btn-primary" onclick="showCreateRepositoryModal()">
                                 <i class="fas fa-plus"></i> 点击创建
                             </button>
-                        </div>
                     </div>
 
                     <div class="repo-grid" id="repoGrid">
@@ -208,6 +206,28 @@
                         </div>
                     </div>
                 </section>
+
+                    <div class="settings-card" style="margin-top: 20px;">
+                        <h3>仓库设置</h3>
+                        <form id="repositorySettingsForm" class="settings-form">
+                            <div class="form-group">
+                                <label for="repositorySizeThreshold">仓库大小阈值 (MB)</label>
+                                <input type="number" id="repositorySizeThreshold" name="repository_size_threshold" class="form-control" min="100" max="1000" step="1">
+                                <small class="form-text">设置仓库大小阈值，达到此阈值后将自动切换到新仓库。建议不超过900MB，最大不能超过1GB。</small>
+                            </div>
+                            <div class="form-group">
+                                <label for="repositoryNameTemplate">仓库命名规则</label>
+                                <input type="text" id="repositoryNameTemplate" name="repository_name_template" class="form-control" placeholder="例如: images-repo">
+                                <small class="form-text">设置新建仓库的基础名称，系统将自动添加序号，如 images-repo-1。如不设置，将基于当前仓库名称生成。</small>
+                            </div>
+                            <div class="form-group">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i>
+                                    保存设置
+                                </button>
+                            </div>
+                        </form>
+                    </div>
 
                 <!-- 系统设置 -->
                 <section id="settings" class="page">
@@ -222,28 +242,6 @@
                                         <span class="slider"></span>
                                     </label>
                                 </label>
-                            </div>
-                            <div class="form-group">
-                                <button type="submit" class="btn btn-primary">
-                                    <i class="fas fa-save"></i>
-                                    保存设置
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-
-                    <div class="settings-card" style="margin-top: 20px;">
-                        <h3>仓库设置</h3>
-                        <form id="repositorySettingsForm" class="settings-form">
-                            <div class="form-group">
-                                <label for="repositorySizeThreshold">仓库大小阈值 (MB)</label>
-                                <input type="number" id="repositorySizeThreshold" name="repository_size_threshold" class="form-control" min="100" max="1000" step="1">
-                                <small class="form-text">设置仓库大小阈值，达到此阈值后将自动切换到新仓库。建议不超过900MB，最大不能超过1GB。</small>
-                            </div>
-                            <div class="form-group">
-                                <label for="repositoryNameTemplate">仓库命名规则</label>
-                                <input type="text" id="repositoryNameTemplate" name="repository_name_template" class="form-control" placeholder="例如: images-repo">
-                                <small class="form-text">设置新建仓库的基础名称，系统将自动添加序号，如 images-repo-1。如不设置，将基于当前仓库名称生成。</small>
                             </div>
                             <div class="form-group">
                                 <button type="submit" class="btn btn-primary">
