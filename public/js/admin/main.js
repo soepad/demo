@@ -2490,7 +2490,24 @@ async function uploadSelectedFiles(files) {
     
     try {
         for (const file of files) {
-            await uploadFileWithProgress(file, updateProgress);
+            // 定义文件大小阈值，超过此值使用分块上传
+            const CHUNK_SIZE_THRESHOLD = 5 * 1024 * 1024; // 5MB
+            
+            if (file.size > CHUNK_SIZE_THRESHOLD && window.ChunkedUploader) {
+                console.log(`文件大小超过${formatSize(CHUNK_SIZE_THRESHOLD)}，使用分块上传`);
+                await uploadLargeFileWithChunks(file, (progress) => {
+                    // 计算总体进度 (已上传完成的文件 + 当前文件的进度)
+                    const currentFileContribution = progress.uploadedSize / totalSize;
+                    const completedFilesContribution = uploadedSize / totalSize;
+                    const overallProgress = completedFilesContribution + currentFileContribution;
+                    updateProgress(progress.uploadedSize);
+                });
+            } else {
+                console.log(`使用普通上传方式`);
+                await uploadFileWithProgress(file, (loaded, total) => {
+                    updateProgress(loaded);
+                });
+            }
         }
         
         // 上传完成后，更新仓库统计信息
