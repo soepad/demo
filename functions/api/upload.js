@@ -820,13 +820,16 @@ export async function onRequest(context) {
           }
         }
         
+        // 构建图片URL
+        const imageUrl = `${env.SITE_URL}/images/${datePath}/${uploadFileName}`;
+        
         return new Response(JSON.stringify({
           success: true,
-          file: {
-            name: uploadFileName,
-            path: filePath,
-            size: session.fileSize,
-            url: response.data.content.html_url
+          data: {
+            url: imageUrl,
+            markdown: `![${uploadFileName}](${imageUrl})`,
+            html: `<img src="${imageUrl}" alt="${uploadFileName}">`,
+            bbcode: `[img]${imageUrl}[/img]`
           }
         }), {
           headers: {
