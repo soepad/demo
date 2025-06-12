@@ -999,14 +999,6 @@ function createRepositoryCard(repo) {
     card.innerHTML = `
         <div class="repo-header">
             <h3>${repo.name}</h3>
-            <div class="repo-actions">
-                <button class="btn btn-icon" onclick="showRepositoryDetails(${repo.id})" title="查看详情">
-                    <i class="fas fa-info-circle"></i>
-                </button>
-                <button class="btn btn-icon" onclick="activateRepository(${repo.id})" title="激活仓库">
-                    <i class="fas fa-check-circle"></i>
-                </button>
-            </div>
         </div>
         <div class="repo-info">
             <p><i class="fas fa-file"></i> ${fileCount} 个文件</p>
