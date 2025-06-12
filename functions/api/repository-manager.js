@@ -362,14 +362,8 @@ export async function checkRepositorySpaceAndAllocate(env, totalUploadSize) {
       }
     }
     
-    // 只检查当前仓库大小是否达到阈值
-    if (activeRepo.size_estimate >= repoSizeThreshold) {
-      console.log(`当前仓库已达到阈值，创建新仓库: 当前=${activeRepo.size_estimate}, 阈值=${repoSizeThreshold}`);
-      throw new Error('仓库已达到阈值');
-    }
-    
     // 当前仓库未达到阈值，继续使用
-    console.log(`使用当前仓库: ${activeRepo.name}, 当前=${activeRepo.size_estimate}, 阈值=${repoSizeThreshold}`);
+    console.log(`使用当前仓库: ${activeRepo.name}`);
     return {
       canUpload: true,
       repository: {
@@ -536,17 +530,6 @@ export async function syncRepositoryFileCount(env, repositoryId) {
     const actualSize = statsResult.total_size || 0;
     
     console.log(`仓库 ${repo.name} (ID: ${repositoryId}) 实际文件数量: ${actualFileCount}, 总大小: ${actualSize} 字节`);
-    
-    // 更新仓库的文件计数和大小
-    await env.DB.prepare(`
-      UPDATE repositories 
-      SET file_count = ?, 
-          size_estimate = ?,
-          updated_at = datetime('now', '+8 hours')
-      WHERE id = ?
-    `).bind(actualFileCount, actualSize, repositoryId).run();
-    
-    console.log(`仓库 ${repo.name} (ID: ${repositoryId}) 的统计信息已同步: ${actualFileCount} 个文件, ${actualSize} 字节`);
     
     return { 
       success: true,
