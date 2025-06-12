@@ -984,13 +984,38 @@ function createRepositoryCard(repo) {
     card.className = 'repo-card';
     card.dataset.repoId = repo.id;
     
+    // 计算仓库的文件数量和总大小
+    const fileCount = repo.file_count || 0;
+    const totalSize = repo.total_size || 0;
+    const threshold = repo.size_limit || 0;
+    
+    // 格式化大小显示
+    const formattedSize = formatSize(totalSize);
+    const formattedThreshold = threshold ? formatSize(threshold) : '未设置';
+    
+    // 计算使用百分比
+    const usagePercent = threshold ? Math.min((totalSize / threshold) * 100, 100) : 0;
+    
     card.innerHTML = `
         <div class="repo-header">
             <h3>${repo.name}</h3>
+            <div class="repo-actions">
+                <button class="btn btn-icon" onclick="showRepositoryDetails(${repo.id})" title="查看详情">
+                    <i class="fas fa-info-circle"></i>
+                </button>
+                <button class="btn btn-icon" onclick="activateRepository(${repo.id})" title="激活仓库">
+                    <i class="fas fa-check-circle"></i>
+                </button>
+            </div>
         </div>
         <div class="repo-info">
-            <p><i class="fas fa-file"></i> ${repo.file_count || 0} 个文件</p>
-            <p><i class="fas fa-hdd"></i> ${formatSize(repo.size_estimate || 0)} / ${formatSize(repo.size_limit || 0)}(阈值)</p>
+            <p><i class="fas fa-file"></i> ${fileCount} 个文件</p>
+            <p><i class="fas fa-hdd"></i> ${formattedSize} / ${formattedThreshold}(阈值)</p>
+            <div class="progress-bar">
+                <div class="progress" style="width: ${usagePercent}%"></div>
+            </div>
+        </div>
+        <div class="repo-footer">
             <p><i class="fas fa-clock"></i> 创建于 ${formatDate(repo.created_at)}</p>
         </div>
     `;
