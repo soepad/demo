@@ -438,11 +438,25 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             
             // 监听错误
-            xhr.addEventListener('error', () => {
-                const error = new Error('网络连接错误，请检查您的网络连接');
-                error.isNetworkError = true;
-                reject(error);
-            });
+            xhr.onerror = function() {
+                // 检查是否是网络连接问题
+                if (!navigator.onLine) {
+                    handleUploadError(new Error('网络连接已断开，请检查网络连接'));
+                } else {
+                    // 尝试重新连接
+                    fetch('/api/upload?action=ping')
+                        .then(response => {
+                            if (response.ok) {
+                                handleUploadError(new Error('上传失败，请重试'));
+                            } else {
+                                handleUploadError(new Error('服务器连接失败，请稍后重试'));
+                            }
+                        })
+                        .catch(() => {
+                            handleUploadError(new Error('服务器连接失败，请稍后重试'));
+                        });
+                }
+            };
             
             xhr.addEventListener('abort', () => {
                 reject(new Error('上传已取消'));
