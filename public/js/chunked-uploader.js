@@ -77,6 +77,9 @@ class ChunkedUploader {
     // 是否跳过部署
     this.skipDeploy = options.skipDeploy || false;
     
+    // API路径配置
+    this.apiBasePath = options.apiBasePath || '/api/upload';
+    
     // 回调
     this.onProgress = options.onProgress || (() => {});
     this.onComplete = options.onComplete || (() => {});
@@ -137,7 +140,7 @@ class ChunkedUploader {
    */
   async _createUploadSession() {
     try {
-      const response = await fetch('/api/upload?action=create-session', {
+      const response = await fetch(`${this.apiBasePath}?action=create-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -210,8 +213,8 @@ class ChunkedUploader {
       
       console.log(`上传分块 ${chunk.index}/${this.totalChunks}, 会话ID=${this.sessionId}`);
       
-      // 上传分块 - 使用正确的API路径
-      const response = await fetch('/api/upload?action=chunk', {
+      // 上传分块 - 使用配置的API路径
+      const response = await fetch(`${this.apiBasePath}?action=chunk`, {
         method: 'POST',
         body: formData
       });
@@ -309,7 +312,7 @@ class ChunkedUploader {
    */
   async _completeUpload() {
     try {
-      const response = await fetch('/api/upload?action=complete', {
+      const response = await fetch(`${this.apiBasePath}?action=complete`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
