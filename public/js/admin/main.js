@@ -915,9 +915,13 @@ function initRepositoryManagement() {
 // 加载仓库列表
 async function loadRepositories() {
     const container = document.getElementById('repositoriesContainer');
-    if (!container) return;
+    if (!container) {
+        console.error('未找到仓库容器元素');
+        return;
+    }
     
     try {
+        console.log('开始加载仓库列表...');
         // 显示加载状态
         container.innerHTML = `
             <div class="loading-indicator">
@@ -926,15 +930,22 @@ async function loadRepositories() {
             </div>
         `;
         
+        console.log('发送API请求...');
         const response = await safeApiCall('/api/repositories');
+        console.log('API响应:', response);
+        
         if (response.error) {
+            console.error('API返回错误:', response.error);
             throw new Error(response.error);
         }
         
         const repositories = response.data || [];
+        console.log('获取到仓库列表:', repositories);
+        
         container.innerHTML = '';
         
         if (repositories.length === 0) {
+            console.log('没有找到仓库');
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fas fa-folder-open"></i>
@@ -947,10 +958,12 @@ async function loadRepositories() {
             return;
         }
         
+        console.log('开始渲染仓库卡片...');
         repositories.forEach(repo => {
             const card = createRepositoryCard(repo);
             container.appendChild(card);
         });
+        console.log('仓库列表加载完成');
     } catch (error) {
         console.error('加载仓库列表失败:', error);
         container.innerHTML = `
