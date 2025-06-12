@@ -193,6 +193,29 @@ export async function onRequest(context) {
     try {
       const repos = await getAllRepositories(env);
       
+      // 获取每个仓库的文件数量和总大小
+      for (const repo of repos) {
+        const stats = await env.DB.prepare(`
+          SELECT 
+            COUNT(*) as file_count,
+            COALESCE(SUM(size), 0) as total_size
+          FROM images 
+          WHERE repository_id = ?
+        `).bind(repo.id).first();
+        
+        repo.file_count = stats.file_count;
+        repo.total_size = stats.total_size;
+        
+        // 获取仓库大小阈值
+        const thresholdSetting = await env.DB.prepare(`
+          SELECT value FROM settings WHERE key = 'repository_size_threshold'
+        `).first();
+        
+        repo.size_limit = thresholdSetting && !isNaN(parseInt(thresholdSetting.value)) ? 
+          parseInt(thresholdSetting.value) : 
+          900 * 1024 * 1024; // 默认900MB
+      }
+      
       return new Response(JSON.stringify({
         success: true,
         data: repos
@@ -206,7 +229,7 @@ export async function onRequest(context) {
       console.error('获取仓库列表失败:', error);
       return new Response(JSON.stringify({
         success: false,
-        error: '获取仓库列表失败: ' + error.message
+        error: error.message
       }), {
         status: 500,
         headers: {
