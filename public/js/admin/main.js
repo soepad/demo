@@ -928,6 +928,11 @@ function initRepositoryManagement() {
         }
         
         const container = document.getElementById('repositoriesContainer');
+        if (!container) {
+            console.error('未找到仓库容器元素');
+            return;
+        }
+        
         container.innerHTML = '';
         
         // 先创建所有仓库卡片
@@ -1012,14 +1017,16 @@ function initRepositoryManagement() {
     } catch (error) {
         console.error('加载仓库列表失败:', error);
         const container = document.getElementById('repositoriesContainer');
-        container.innerHTML = `
-            <div class="col-12">
-                <div class="alert alert-danger">
-                    <i class="bi bi-exclamation-triangle"></i> 
-                    加载仓库列表失败: ${error.message}
+        if (container) {
+            container.innerHTML = `
+                <div class="col-12">
+                    <div class="alert alert-danger">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        加载仓库列表失败: ${error.message}
+                    </div>
                 </div>
-            </div>
-        `;
+            `;
+        }
     }
 }
     
