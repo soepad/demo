@@ -989,22 +989,19 @@ function initRepositoryManagement() {
         card.className = 'repo-card';
         card.dataset.repoId = repo.id;
         
-        // 获取仓库大小阈值
-        const thresholdSetting = await env.DB.prepare(`
-          SELECT value FROM settings WHERE key = 'repository_size_threshold'
-        `).first();
+        // 从后端获取仓库大小
+        const response = await fetch(`/api/repositories/sync-size/${repo.id}`, {
+            method: 'POST'
+        });
         
-        const thresholdBytes = thresholdSetting ? 
-          parseInt(thresholdSetting.value) : 
-          900 * 1024 * 1024; // 默认900MB
+        const data = await response.json();
+        if (!data.success) {
+            console.error('获取仓库大小失败:', data.error);
+            return card;
+        }
         
-        // 获取仓库实际大小
-        const actualSize = await getRepositorySize(
-          env, 
-          repo.owner, 
-          repo.name, 
-          repo.token || env.GITHUB_TOKEN
-        );
+        const actualSize = data.size;
+        const thresholdBytes = data.threshold;
         
         // 计算使用百分比
         const usagePercent = Math.round((actualSize / thresholdBytes) * 100);
